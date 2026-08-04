@@ -403,14 +403,14 @@ export default function Welcome() {
             <div className="relative">
               <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-white">
                 <img
-  		src="/images/acad-online-tuition.jpg"
-  		alt="Indian female student learning online with laptop using ACAD tutoring app - online education platform for students and teachers in India"
-  		className="w-full hero-image"
-  		loading="eager"
-  		width="600"
- 	 	height="450"
-  		fetchPriority="high"
-		/>
+  src="/images/acad-online-tuition.jpg"
+  alt="Indian female student learning online with laptop using ACAD tutoring app - online education platform for students and teachers in India"
+  className="w-full hero-image"
+  loading="eager"
+  width="600"
+  height="450"
+  fetchPriority="high"
+/>
               </div>
             </div>
           </div>
