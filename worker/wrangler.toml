@@ -19,8 +19,8 @@ bucket_name = "acad-uploads"
 # ---- Non-secret vars (safe to commit) ----
 [vars]
 APP_URL = "https://acadapp.in"
-API_URL = "https://acad-api.krishiv-advt.workers.dev"
-COOKIE_DOMAIN = ""
+API_URL = "https://api.acadapp.in"
+COOKIE_DOMAIN = ".acadapp.in"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 EMAIL_FROM = "ACAD Team <notifications@acadapp.in>"
 
