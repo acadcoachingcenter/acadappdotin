@@ -1,0 +1,19 @@
+ACAD Cloudflare migration update - 2026-08-04
+
+Active Cloudflare Pages root: app
+
+Completed:
+- Replaced remaining active @/api/base44Client imports in app/src with @/api/apiClient.
+- Replaced remaining base44.auth/entities/integrations/functions/appLogs calls with apiClient equivalents.
+- Updated compatibility entity modules to use apiClient.
+- Updated Core integration compatibility module to use apiClient.
+- Updated direct UploadFile consumers to Cloudflare apiClient upload.
+- Added app/public/_redirects for SPA routing: /* /index.html 200
+- Added valid app/public/manifest.json to stop manifest syntax errors.
+- Confirmed no active base44Client imports or base44.* runtime calls remain under app/src.
+
+Intentionally retained:
+- Existing media.base44.com / base44-prod asset URLs where they point to currently hosted images/PDFs. These are content URLs, not SDK/API dependencies. Migrating those assets requires copying the actual files to R2 or another storage service first.
+
+Build validation note:
+- Local npm install could not complete in the execution environment because its internal npm mirror returned 404 for zwitch-2.0.4. This is an environment registry issue, not a project compile error. Cloudflare should perform the definitive npm build after push.

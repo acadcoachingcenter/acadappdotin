@@ -1,0 +1,32 @@
+name = "acad-api"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# ---- D1 database (free tier: 5GB storage, 5M rows read/day) ----
+# Create with: wrangler d1 create acad-db
+# Then paste the returned database_id below.
+[[d1_databases]]
+binding = "DB"
+database_name = "acad-db"
+database_id = "29a016fd-05d6-4c35-a279-c2e9d7b07837"
+
+# ---- R2 bucket for uploaded files (free tier: 10GB storage, no egress fee) ----
+# Create with: wrangler r2 bucket create acad-uploads
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "acad-uploads"
+
+# ---- Non-secret vars (safe to commit) ----
+[vars]
+APP_URL = "https://acadapp.in"
+API_URL = "https://acad-api.krishiv-advt.workers.dev"
+COOKIE_DOMAIN = ""
+GROQ_MODEL = "llama-3.3-70b-versatile"
+EMAIL_FROM = "ACAD Team <notifications@acadapp.in>"
+
+# ---- Secrets (do NOT put these here -- set via `wrangler secret put <NAME>`) ----
+# SESSION_SECRET       - long random string, e.g. `openssl rand -hex 32`
+# GOOGLE_CLIENT_ID      - from Google Cloud Console OAuth client
+# GOOGLE_CLIENT_SECRET  - from Google Cloud Console OAuth client
+# RESEND_API_KEY        - from resend.com
+# GROQ_API_KEY           - from console.groq.com

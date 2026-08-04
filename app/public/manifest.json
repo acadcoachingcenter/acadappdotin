@@ -1,0 +1,9 @@
+{
+  "name": "ACAD Online Coaching",
+  "short_name": "ACAD",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1565C0",
+  "icons": []
+}
