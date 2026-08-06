@@ -11,6 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+
 import {
   GraduationCap,
   Home,
@@ -133,6 +135,7 @@ export default function Layout({ children, currentPageName }) {
         { title: "AI Paper Generator", url: createPageUrl("AIQuestionPaperGenerator"), icon: FileText },
         { title: "Event Management", url: createPageUrl("AdminEventManagement"), icon: Calendar },
         { title: "Attendance", url: createPageUrl("MonthlyAttendance"), icon: CalendarDays },
+	{ title: "Live Class Schedule", url: "https://classroom.acadapp.in", icon: CalendarDays, external: true },
         { title: "Events", url: createPageUrl("Events"), icon: Award },
         { title: "Fee Structure", url: createPageUrl("FeeStructure"), icon: IndianRupee },
         { title: "Blog", url: createPageUrl("Blog"), icon: BookOpen },
@@ -165,12 +168,13 @@ export default function Layout({ children, currentPageName }) {
           { title: "Find Teachers Near You", url: createPageUrl("FindTeachersNearYou"), icon: MapPin },
           { title: "My Study Materials", url: createPageUrl("MyStudyMaterials"), icon: BookOpen },
           { title: "My Attendance", url: createPageUrl("MonthlyAttendance"), icon: CalendarDays },
+	  { title: "Live Class Schedule", url: "https://classroom.acadapp.in", icon: CalendarDays, external: true },
           { title: "Events", url: createPageUrl("Events"), icon: Calendar },
           { title: "Fee Structure", url: createPageUrl("FeeStructure"), icon: IndianRupee },
           { title: "Festive Offers", url: createPageUrl("FestiveSeasonOffer"), icon: Gift },
           { title: "Blog", url: createPageUrl("Blog"), icon: BookOpen },
           { title: "Academic Essentials", url: "https://acad-formulabox.netlify.app/", icon: BookOpen, external: true },
-        { title: "Learn Abacus", url: "https://abacus.acadapp.in/", icon: BookOpen, external: true },
+          { title: "Learn Abacus", url: "https://abacus.acadapp.in/", icon: BookOpen, external: true },
           { title: "NEET | JEE Support", url: createPageUrl("NeetJeeSupport"), icon: BookOpen },
           { title: "Hindi Sabha Exam", url: createPageUrl("HindiSabha"), icon: BookOpen },
           { title: "Hindi Sabha Practice", url: "https://acad-hindi.netlify.app/", icon: Award, external: true },
@@ -225,6 +229,7 @@ export default function Layout({ children, currentPageName }) {
           { title: "Become a Home Tutor", url: createPageUrl("BecomeHomeTutor"), icon: GraduationCap },
           { title: "Subscription Plans", url: createPageUrl("TutorSubscription"), icon: Crown },
           { title: "Attendance", url: createPageUrl("MonthlyAttendance"), icon: CalendarDays },
+	  { title: "Live Class Schedule", url: "https://classroom.acadapp.in", icon: CalendarDays, external: true },
           { title: "Events", url: createPageUrl("Events"), icon: Calendar },
           { title: "Fee Structure", url: createPageUrl("FeeStructure"), icon: IndianRupee },
           { title: "Find Home Tuitions", url: createPageUrl("FindHomeTuitions"), icon: MapPin },
@@ -256,7 +261,7 @@ export default function Layout({ children, currentPageName }) {
           { title: "Fee Structure", url: createPageUrl("FeeStructure"), icon: IndianRupee },
           { title: "Blog", url: createPageUrl("Blog"), icon: BookOpen },
           { title: "Academic Essentials", url: "https://acad-formulabox.netlify.app/", icon: BookOpen, external: true },
-        { title: "Learn Abacus", url: "https://abacus.acadapp.in/", icon: BookOpen, external: true },
+          { title: "Learn Abacus", url: "https://abacus.acadapp.in/", icon: BookOpen, external: true },
           { title: "NEET | JEE Support", url: createPageUrl("NeetJeeSupport"), icon: BookOpen },
           { title: "Hindi Sabha Exam", url: createPageUrl("HindiSabha"), icon: BookOpen },
           { title: "Hindi Sabha Practice", url: "https://acad-hindi.netlify.app/", icon: Award, external: true },
