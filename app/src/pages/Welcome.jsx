@@ -163,32 +163,32 @@ export default function Welcome() {
   const buttonConfig = getButtonConfig();
 
   const envImages = [
-    {
-      src: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/apiClient-prod/public/5f813cc7c_DownloaditandpromptonmyFreepikprofile_High.jpg",
-      alt: "Indian male student studying mathematics online with focused concentration using ACAD tutoring app",
-      title: "Focused Learning",
-      desc: "Distraction-free environment"
-    },
-    {
-      src: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/apiClient-prod/public/79c5c08f4_SmilingstudentWomenworkingonlaptopandread.jpg",
-      alt: "Smiling Indian female student learning online courses with flexible schedule on ACAD education platform",
-      title: "Flexible Schedule",
-      desc: "Learn at your own pace"
-    },
-    {
-      src: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/apiClient-prod/public/105fe6bcf_ThinkAcademybyDormanAssociates_BayArea.jpg",
-      alt: "Interactive online classroom with digital whiteboard for live teaching sessions on ACAD tutoring platform",
-      title: "Interactive Classes",
-      desc: "Live whiteboard sessions"
-    },
-    {
-      src: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/apiClient-prod/public/3219ad50e_MithibaiCollege_UGDegreeCoursesEligibilityAdmissionandEntranceExamCriteriafor2025-2026.jpg",
-      alt: "Students celebrating academic success and excellent exam results with ACAD online tutoring",
-      title: "Academic Success",
-      desc: "Proven results"
-    }
-  ];
-
+  {
+    src: "/images/footerImage1.png",
+    alt: "Indian male student studying mathematics online with focused concentration using ACAD tutoring app",
+    title: "Focused Learning",
+    desc: "Distraction-free environment"
+  },
+  {
+    src: "/images/footerImage2.png",
+    alt: "Smiling Indian female student learning online courses with flexible schedule on ACAD education platform",
+    title: "Flexible Schedule",
+    desc: "Learn at your own pace"
+  },
+  {
+    src: "/images/footerImage3.png",
+    alt: "Interactive online classroom with digital whiteboard for live teaching sessions on ACAD tutoring platform",
+    title: "Interactive Classes",
+    desc: "Live whiteboard sessions"
+  },
+  {
+    src: "/images/footerImage4.png",
+    alt: "Students celebrating academic success and excellent exam results with ACAD online tutoring",
+    title: "Academic Success",
+    desc: "Proven Results"
+  }
+];
+  
   const features = [
     {
       icon: BookOpen,
