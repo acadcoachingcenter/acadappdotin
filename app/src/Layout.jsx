@@ -82,15 +82,15 @@ export default function Layout({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [expandedSections, setExpandedSections] = useState({
-    LEARNING: true,
-    MANAGEMENT: true,
-    TEACHING: true,
-    CONTENT: true,
-    INFO: true,
-    "ACAD TOOLS": true,
-    "EXAM PREP": false,
-    "LEARNING WEBSITES": false,
-  });
+  LEARNING: false,
+  MANAGEMENT: false,
+  TEACHING: false,
+  CONTENT: false,
+  INFO: false,
+  "ACAD TOOLS": false,
+  "EXAM PREP": false,
+  "LEARNING WEBSITES": false,
+});
 
   /*
    * Chatbase
@@ -788,11 +788,20 @@ export default function Layout({
    * Toggle navigation section
    */
   const toggleSection = (title) => {
-    setExpandedSections((previous) => ({
-      ...previous,
-      [title]: !previous[title],
-    }));
-  };
+  setExpandedSections((previous) => {
+    const isCurrentlyOpen = !!previous[title];
+
+    const nextState = {};
+
+    Object.keys(previous).forEach((section) => {
+      nextState[section] = false;
+    });
+
+    nextState[title] = !isCurrentlyOpen;
+
+    return nextState;
+  });
+};
 
   /*
    * Logout
