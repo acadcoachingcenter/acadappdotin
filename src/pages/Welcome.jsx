@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { apiClient } from "@/api/apiClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +43,7 @@ export default function Welcome() {
     const fetchUserStatus = async () => {
       setIsLoading(true);
       try {
-        const userData = await base44.auth.me();
+        const userData = await apiClient.auth.me();
         setUser(userData);
       } catch (error) {
         setUser(null);
@@ -55,7 +55,7 @@ export default function Welcome() {
   }, []);
 
   const handleLogin = async () => {
-    await base44.auth.redirectToLogin(window.location.origin + createPageUrl('Onboarding'));
+    await apiClient.auth.redirectToLogin(window.location.origin + createPageUrl('Onboarding'));
   };
 
   const handleGetStarted = () => {
@@ -188,7 +188,7 @@ export default function Welcome() {
     desc: "Proven Results"
   }
 ];
-
+  
   const features = [
     {
       icon: BookOpen,
