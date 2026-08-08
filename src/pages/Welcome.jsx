@@ -344,51 +344,53 @@ export default function Welcome() {
                 Find verified tutors for Mathematics, Physics, Chemistry, Biology. Join live classes, get personalized learning, and achieve academic excellence with India's most trusted online education platform.
               </p>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full auto-rows-[120px]">
 
   {/* Get Started */}
   <button
     onClick={buttonConfig.action}
-    className="w-full h-32 bg-[#1565C0] hover:bg-[#0d47a1] text-white px-3 rounded-xl shadow-sm transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-base leading-snug"
+    className="w-full h-full min-w-0 rounded-xl bg-[#1565C0] hover:bg-[#0d47a1] text-white px-2 shadow-sm transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-sm sm:text-sm leading-tight"
     aria-label="Join ACAD online tuition platform"
   >
     {buttonConfig.icon && (
-      <buttonConfig.icon className="w-5 h-5 mb-2" />
+      <buttonConfig.icon className="w-5 h-5 mb-2 shrink-0" />
     )}
-    <span>{buttonConfig.text}</span>
+    <span className="break-words">
+      {buttonConfig.text}
+    </span>
   </button>
 
   {/* Register Interest */}
   <Link
     to={createPageUrl("RegisterInquiry")}
-    className="w-full h-32 border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400 px-3 rounded-xl transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-base leading-snug"
+    className="w-full h-full min-w-0 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400 px-2 transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-sm sm:text-sm leading-tight"
     aria-label="Register your interest in ACAD"
   >
-    <UserIcon className="w-5 h-5 mb-2" />
+    <UserIcon className="w-5 h-5 mb-2 shrink-0" />
     <span>Register Interest</span>
   </Link>
 
   {/* Find Tutor */}
   <Link
     to={createPageUrl("FindTeachersNearYou")}
-    className="w-full h-32 bg-emerald-500 hover:bg-emerald-600 text-white px-3 rounded-xl shadow-sm transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-base leading-snug"
+    className="w-full h-full min-w-0 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white px-2 shadow-sm transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-sm sm:text-sm leading-tight"
     aria-label="Find a tutor near your location"
   >
-    <MapPin className="w-5 h-5 mb-2" />
+    <MapPin className="w-5 h-5 mb-2 shrink-0" />
     <span>Find Tutor Near Me</span>
   </Link>
 
   {/* Become a Tutor */}
   <button
     onClick={() => setShowTutorModal(true)}
-    className="w-full h-32 bg-amber-500 hover:bg-amber-600 text-white px-3 rounded-xl shadow-sm transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-base leading-snug"
+    className="w-full h-full min-w-0 rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-2 shadow-sm transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-sm sm:text-sm leading-tight"
     aria-label="Enroll as a tutor on ACAD"
   >
-    <GraduationCap className="w-5 h-5 mb-2" />
+    <GraduationCap className="w-5 h-5 mb-2 shrink-0" />
     <span>Become a Tutor</span>
   </button>
 
-</div>
+     </div>
 
               <div className="flex flex-wrap items-center gap-x-8 gap-y-3 mt-10 pt-8 border-t border-slate-200">
                 <div className="flex items-center gap-2">
