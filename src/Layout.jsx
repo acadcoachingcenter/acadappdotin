@@ -242,7 +242,12 @@ export default function Layout({ children, currentPageName }) {
       title: "ACAD TOOLS",
       isHeader: true,
     },
-
+{
+  title: "ACAD Classroom",
+  url: "https://classroom.acadapp.in/",
+  icon: Video,
+  external: true,
+},
     {
       title: "Academic Essentials",
       url:
