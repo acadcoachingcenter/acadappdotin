@@ -33,6 +33,9 @@ import {
   Info,
   RefreshCw,
   ShieldCheck,
+  UserCheck,
+  UserX,
+  UserMinus,
 } from "lucide-react";
 
 import {
@@ -48,7 +51,7 @@ import {
 
 
 /* ============================================================
-   USER ROLE OPTIONS
+   USER ROLES
 ============================================================ */
 
 const USER_TYPES = [
@@ -72,6 +75,30 @@ const USER_TYPES = [
 
 
 /* ============================================================
+   ACCOUNT STATUS
+============================================================ */
+
+const ACCOUNT_STATUSES = [
+  {
+    value: "active",
+    label: "Active",
+  },
+  {
+    value: "inactive",
+    label: "Inactive",
+  },
+  {
+    value: "suspended",
+    label: "Suspended",
+  },
+  {
+    value: "deleted",
+    label: "Deleted",
+  },
+];
+
+
+/* ============================================================
    MAIN COMPONENT
 ============================================================ */
 
@@ -83,6 +110,9 @@ export default function AdminTutorManagement() {
 
   const [filterType, setFilterType] =
     useState("unassigned");
+
+  const [filterStatus, setFilterStatus] =
+    useState("all");
 
   const [isLoading, setIsLoading] =
     useState(true);
@@ -144,87 +174,34 @@ export default function AdminTutorManagement() {
 
 
   /* ==========================================================
-     FILTER USERS
-  ========================================================== */
-
-  const filteredUsers = useMemo(() => {
-
-    let filtered = users;
-
-
-    /* --------------------------------------------------------
-       ROLE FILTER
-    -------------------------------------------------------- */
-
-    if (filterType !== "all") {
-
-      filtered = filtered.filter((user) => {
-
-        if (filterType === "unassigned") {
-
-          return !user.user_type;
-
-        }
-
-        return user.user_type === filterType;
-
-      });
-
-    }
-
-
-    /* --------------------------------------------------------
-       SEARCH FILTER
-    -------------------------------------------------------- */
-
-    if (searchTerm.trim()) {
-
-      const search =
-        searchTerm.toLowerCase().trim();
-
-      filtered = filtered.filter((user) => {
-
-        return (
-          user.full_name
-            ?.toLowerCase()
-            .includes(search) ||
-
-          user.email
-            ?.toLowerCase()
-            .includes(search) ||
-
-          String(user.id)
-            .toLowerCase()
-            .includes(search)
-        );
-
-      });
-
-    }
-
-
-    return filtered;
-
-  }, [
-    users,
-    searchTerm,
-    filterType,
-  ]);
-
-
-  /* ==========================================================
      NORMALIZE USER TYPE
   ========================================================== */
 
   const normalizeUserType = (type) => {
 
     if (!type) {
-
       return "unassigned";
-
     }
 
     return type;
+
+  };
+
+
+  /* ==========================================================
+     NORMALIZE ACCOUNT STATUS
+     
+     Existing users without account_status are treated
+     as ACTIVE.
+  ========================================================== */
+
+  const normalizeAccountStatus = (status) => {
+
+    if (!status) {
+      return "active";
+    }
+
+    return status;
 
   };
 
@@ -291,6 +268,157 @@ export default function AdminTutorManagement() {
 
 
   /* ==========================================================
+     ACCOUNT STATUS LABEL
+  ========================================================== */
+
+  const getAccountStatusLabel = (status) => {
+
+    switch (status) {
+
+      case "active":
+        return "Active";
+
+      case "inactive":
+        return "Inactive";
+
+      case "suspended":
+        return "Suspended";
+
+      case "deleted":
+        return "Deleted";
+
+      default:
+        return "Active";
+
+    }
+
+  };
+
+
+  /* ==========================================================
+     ACCOUNT STATUS COLOR
+  ========================================================== */
+
+  const getAccountStatusColor = (status) => {
+
+    switch (status) {
+
+      case "active":
+        return "bg-green-100 text-green-800 border-green-200";
+
+      case "inactive":
+        return "bg-gray-100 text-gray-800 border-gray-200";
+
+      case "suspended":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+
+      case "deleted":
+        return "bg-red-100 text-red-800 border-red-200";
+
+      default:
+        return "bg-green-100 text-green-800 border-green-200";
+
+    }
+
+  };
+
+
+  /* ==========================================================
+     FILTER USERS
+  ========================================================== */
+
+  const filteredUsers = useMemo(() => {
+
+    let filtered = users;
+
+
+    /* --------------------------------------------------------
+       ROLE FILTER
+    -------------------------------------------------------- */
+
+    if (filterType !== "all") {
+
+      filtered = filtered.filter((user) => {
+
+        const type =
+          normalizeUserType(
+            user.user_type
+          );
+
+        return type === filterType;
+
+      });
+
+    }
+
+
+    /* --------------------------------------------------------
+       STATUS FILTER
+    -------------------------------------------------------- */
+
+    if (filterStatus !== "all") {
+
+      filtered = filtered.filter((user) => {
+
+        const status =
+          normalizeAccountStatus(
+            user.account_status
+          );
+
+        return status === filterStatus;
+
+      });
+
+    }
+
+
+    /* --------------------------------------------------------
+       SEARCH
+    -------------------------------------------------------- */
+
+    if (searchTerm.trim()) {
+
+      const search =
+        searchTerm.toLowerCase().trim();
+
+      filtered = filtered.filter((user) => {
+
+        return (
+
+          user.full_name
+            ?.toLowerCase()
+            .includes(search)
+
+          ||
+
+          user.email
+            ?.toLowerCase()
+            .includes(search)
+
+          ||
+
+          String(user.id)
+            .toLowerCase()
+            .includes(search)
+
+        );
+
+      });
+
+    }
+
+
+    return filtered;
+
+  }, [
+    users,
+    searchTerm,
+    filterType,
+    filterStatus,
+  ]);
+
+
+  /* ==========================================================
      ROLE CHANGE REQUEST
   ========================================================== */
 
@@ -300,23 +428,15 @@ export default function AdminTutorManagement() {
   ) => {
 
     const currentType =
-      normalizeUserType(user.user_type);
+      normalizeUserType(
+        user.user_type
+      );
 
-
-    /* --------------------------------------------------------
-       No change
-    -------------------------------------------------------- */
 
     if (currentType === newType) {
-
       return;
-
     }
 
-
-    /* --------------------------------------------------------
-       Protect admin accounts
-    -------------------------------------------------------- */
 
     if (user.user_type === "admin") {
 
@@ -331,11 +451,13 @@ export default function AdminTutorManagement() {
 
     setPendingChange({
 
+      action: "role",
+
       user,
 
-      currentType,
+      currentValue: currentType,
 
-      newType,
+      newValue: newType,
 
     });
 
@@ -343,48 +465,87 @@ export default function AdminTutorManagement() {
 
 
   /* ==========================================================
-     CONFIRM ROLE CHANGE
+     ACCOUNT STATUS CHANGE REQUEST
   ========================================================== */
 
-  const confirmUserTypeChange =
-    async () => {
+  const handleAccountStatusChange = (
+    user,
+    newStatus
+  ) => {
 
-      if (!pendingChange) {
-
-        return;
-
-      }
-
-
-      const {
-        user,
-        newType,
-      } = pendingChange;
+    const currentStatus =
+      normalizeAccountStatus(
+        user.account_status
+      );
 
 
-      setIsUpdating(true);
+    if (currentStatus === newStatus) {
+      return;
+    }
 
-      setUpdatingUserId(user.id);
+
+    if (user.user_type === "admin") {
+
+      alert(
+        "Admin account status cannot be changed from this screen."
+      );
+
+      return;
+
+    }
 
 
-      try {
+    setPendingChange({
 
-        /* ----------------------------------------------------
-           Convert Unassigned to null
-        ---------------------------------------------------- */
+      action: "status",
+
+      user,
+
+      currentValue: currentStatus,
+
+      newValue: newStatus,
+
+    });
+
+  };
+
+
+  /* ==========================================================
+     CONFIRM CHANGE
+  ========================================================== */
+
+  const confirmChange = async () => {
+
+    if (!pendingChange) {
+      return;
+    }
+
+
+    const {
+      action,
+      user,
+      newValue,
+    } = pendingChange;
+
+
+    setIsUpdating(true);
+
+    setUpdatingUserId(user.id);
+
+
+    try {
+
+      /* ======================================================
+         ROLE CHANGE
+      ======================================================= */
+
+      if (action === "role") {
 
         const databaseUserType =
-          newType === "unassigned"
+          newValue === "unassigned"
             ? null
-            : newType;
+            : newValue;
 
-
-        /* ----------------------------------------------------
-           UPDATE EXISTING USER
-           
-           IMPORTANT:
-           This does NOT create another account.
-        ---------------------------------------------------- */
 
         await User.update(
           user.id,
@@ -394,43 +555,53 @@ export default function AdminTutorManagement() {
           }
         );
 
-
-        /* ----------------------------------------------------
-           Refresh user list
-        ---------------------------------------------------- */
-
-        await loadUsers();
+      }
 
 
-        /* ----------------------------------------------------
-           Close confirmation
-        ---------------------------------------------------- */
+      /* ======================================================
+         ACCOUNT STATUS CHANGE
+      ======================================================= */
 
-        setPendingChange(null);
+      if (action === "status") {
 
-
-      } catch (error) {
-
-        console.error(
-          "Error changing user type:",
-          error
+        await User.update(
+          user.id,
+          {
+            account_status:
+              newValue,
+          }
         );
-
-        alert(
-          "Failed to change user type: " +
-            (error.message ||
-              "Unknown error")
-        );
-
-      } finally {
-
-        setIsUpdating(false);
-
-        setUpdatingUserId(null);
 
       }
 
-    };
+
+      await loadUsers();
+
+      setPendingChange(null);
+
+
+    } catch (error) {
+
+      console.error(
+        "Error updating user:",
+        error
+      );
+
+      alert(
+        "Failed to update user: " +
+          (error.message ||
+            "Unknown error")
+      );
+
+    } finally {
+
+      setIsUpdating(false);
+
+      setUpdatingUserId(null);
+
+    }
+
+  };
 
 
   /* ==========================================================
@@ -445,6 +616,152 @@ export default function AdminTutorManagement() {
 
 
   /* ==========================================================
+     CONFIRMATION TEXT
+  ========================================================== */
+
+  const getConfirmationTitle = () => {
+
+    if (!pendingChange) {
+      return "";
+    }
+
+
+    if (
+      pendingChange.action ===
+      "role"
+    ) {
+
+      return "Change User Type?";
+
+    }
+
+
+    return "Change Account Status?";
+
+  };
+
+
+  const getConfirmationDescription = () => {
+
+    if (!pendingChange) {
+      return null;
+    }
+
+
+    const user =
+      pendingChange.user;
+
+
+    if (
+      pendingChange.action ===
+      "role"
+    ) {
+
+      return (
+        <>
+          You are changing{" "}
+
+          <strong>
+            {user.full_name ||
+              user.email}
+          </strong>
+
+          {" "}from{" "}
+
+          <strong>
+            {getUserTypeLabel(
+              pendingChange.currentValue
+            )}
+          </strong>
+
+          {" "}to{" "}
+
+          <strong>
+            {getUserTypeLabel(
+              pendingChange.newValue
+            )}
+          </strong>
+
+          .
+
+
+          <br />
+          <br />
+
+
+          This changes the role of
+          the existing ACAD account.
+          No new user account will
+          be created.
+        </>
+      );
+
+    }
+
+
+    return (
+      <>
+        You are changing the account
+        status of{" "}
+
+        <strong>
+          {user.full_name ||
+            user.email}
+        </strong>
+
+        {" "}from{" "}
+
+        <strong>
+          {getAccountStatusLabel(
+            pendingChange.currentValue
+          )}
+        </strong>
+
+        {" "}to{" "}
+
+        <strong>
+          {getAccountStatusLabel(
+            pendingChange.newValue
+          )}
+        </strong>
+
+        .
+
+
+        <br />
+        <br />
+
+
+        {pendingChange.newValue ===
+          "deleted" ? (
+
+          <span className="text-red-700">
+            This is a soft delete.
+            The user record will be
+            retained, but the account
+            will be marked as Deleted.
+            The user's historical ACAD
+            records will not be removed.
+          </span>
+
+        ) : (
+
+          <>
+            The user's existing ACAD
+            account will remain intact.
+            Only the account status
+            will change.
+          </>
+
+        )}
+
+      </>
+    );
+
+  };
+
+
+  /* ==========================================================
      PAGE
   ========================================================== */
 
@@ -454,20 +771,36 @@ export default function AdminTutorManagement() {
 
 
       {/* ======================================================
-          PAGE HEADER
+          HEADER
       ======================================================= */}
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="
+        flex
+        flex-col
+        md:flex-row
+        md:items-center
+        md:justify-between
+        gap-4
+      ">
 
         <div>
 
-          <h1 className="text-3xl font-bold text-slate-900">
+          <h1 className="
+            text-3xl
+            font-bold
+            text-slate-900
+          ">
             Tutor & User Management
           </h1>
 
-          <p className="text-sm text-slate-600 mt-1">
-            Manage existing ACAD user roles without
-            creating duplicate accounts.
+          <p className="
+            text-sm
+            text-slate-600
+            mt-1
+          ">
+            Manage user roles and account
+            status without creating duplicate
+            ACAD accounts.
           </p>
 
         </div>
@@ -480,11 +813,16 @@ export default function AdminTutorManagement() {
         >
 
           <RefreshCw
-            className={`w-4 h-4 mr-2 ${
-              isLoading
-                ? "animate-spin"
-                : ""
-            }`}
+            className={`
+              w-4
+              h-4
+              mr-2
+              ${
+                isLoading
+                  ? "animate-spin"
+                  : ""
+              }
+            `}
           />
 
           Refresh
@@ -498,27 +836,49 @@ export default function AdminTutorManagement() {
           INFORMATION CARD
       ======================================================= */}
 
-      <Card className="bg-blue-50 border-blue-200">
+      <Card className="
+        bg-blue-50
+        border-blue-200
+      ">
 
-        <CardHeader className="flex flex-row items-start gap-4">
+        <CardHeader className="
+          flex
+          flex-row
+          items-start
+          gap-4
+        ">
 
-          <Info className="w-6 h-6 text-blue-600 mt-1" />
+          <Info className="
+            w-6
+            h-6
+            text-blue-600
+            mt-1
+          " />
 
           <div>
 
-            <CardTitle className="text-blue-900">
-              User Role Management
+            <CardTitle className="
+              text-blue-900
+            ">
+              User & Account Management
             </CardTitle>
 
-            <p className="text-sm text-blue-800 mt-1">
+            <p className="
+              text-sm
+              text-blue-800
+              mt-1
+            ">
 
-              Each person has one ACAD account.
-              Use the dropdown to assign the
-              account as Tutor, Student, Parent,
-              or Unassigned.
+              Each person has one ACAD
+              account. The user type controls
+              whether the account is a Tutor,
+              Student, Parent, or Unassigned.
 
-              The existing account is updated;
-              no duplicate account is created.
+              Account status controls whether
+              the account is Active, Inactive,
+              Suspended, or Deleted.
+
+              No duplicate account is created.
 
             </p>
 
@@ -530,46 +890,38 @@ export default function AdminTutorManagement() {
 
 
       {/* ======================================================
-          USER MANAGEMENT CARD
+          FILTER CARD
       ======================================================= */}
 
       <Card>
 
         <CardHeader>
 
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="
+            flex
+            flex-col
+            xl:flex-row
+            xl:items-center
+            xl:justify-between
+            gap-4
+          ">
 
 
-            {/* ------------------------------------------------
-                TITLE
-            ------------------------------------------------- */}
+            {/* TITLE */}
 
             <CardTitle>
 
-              {filterType === "unassigned"
-
-                ? "Unassigned Users"
-
-                : filterType === "all"
-
-                ? "All Users"
-
-                : `${getUserTypeLabel(
-                    filterType
-                  )}s`}
-
-              {" "}
-
-              ({filteredUsers.length})
+              Users ({filteredUsers.length})
 
             </CardTitle>
 
 
-            {/* ------------------------------------------------
-                SEARCH + FILTER
-            ------------------------------------------------- */}
-
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="
+              flex
+              flex-col
+              md:flex-row
+              gap-2
+            ">
 
 
               {/* SEARCH */}
@@ -589,20 +941,26 @@ export default function AdminTutorManagement() {
                 />
 
                 <Input
-                  placeholder="Search name, email or ID..."
+                  placeholder="
+                    Search name, email or ID...
+                  "
                   value={searchTerm}
                   onChange={(e) =>
                     setSearchTerm(
                       e.target.value
                     )
                   }
-                  className="pl-10 w-full sm:w-72"
+                  className="
+                    pl-10
+                    w-full
+                    md:w-72
+                  "
                 />
 
               </div>
 
 
-              {/* FILTER */}
+              {/* ROLE FILTER */}
 
               <Select
                 value={filterType}
@@ -611,7 +969,9 @@ export default function AdminTutorManagement() {
                 }
               >
 
-                <SelectTrigger className="w-full sm:w-48">
+                <SelectTrigger
+                  className="w-full md:w-44"
+                >
 
                   <SelectValue />
 
@@ -621,7 +981,7 @@ export default function AdminTutorManagement() {
                 <SelectContent>
 
                   <SelectItem value="unassigned">
-                    Unassigned Users
+                    Unassigned
                   </SelectItem>
 
                   <SelectItem value="tutor">
@@ -637,7 +997,52 @@ export default function AdminTutorManagement() {
                   </SelectItem>
 
                   <SelectItem value="all">
-                    All Users
+                    All Roles
+                  </SelectItem>
+
+                </SelectContent>
+
+              </Select>
+
+
+              {/* STATUS FILTER */}
+
+              <Select
+                value={filterStatus}
+                onValueChange={
+                  setFilterStatus
+                }
+              >
+
+                <SelectTrigger
+                  className="w-full md:w-44"
+                >
+
+                  <SelectValue />
+
+                </SelectTrigger>
+
+
+                <SelectContent>
+
+                  <SelectItem value="all">
+                    All Statuses
+                  </SelectItem>
+
+                  <SelectItem value="active">
+                    Active
+                  </SelectItem>
+
+                  <SelectItem value="inactive">
+                    Inactive
+                  </SelectItem>
+
+                  <SelectItem value="suspended">
+                    Suspended
+                  </SelectItem>
+
+                  <SelectItem value="deleted">
+                    Deleted
                   </SelectItem>
 
                 </SelectContent>
@@ -660,7 +1065,10 @@ export default function AdminTutorManagement() {
 
           {isLoading ? (
 
-            <div className="text-center py-10">
+            <div className="
+              text-center
+              py-10
+            ">
 
               <RefreshCw
                 className="
@@ -673,7 +1081,9 @@ export default function AdminTutorManagement() {
                 "
               />
 
-              <p className="text-slate-500">
+              <p className="
+                text-slate-500
+              ">
                 Loading users...
               </p>
 
@@ -682,138 +1092,360 @@ export default function AdminTutorManagement() {
           ) : (
 
 
-            /* ==================================================
-               USER LIST
-            =================================================== */
-
-            <div className="space-y-4">
-
-              {filteredUsers.map((user) => {
-
-                const currentType =
-                  normalizeUserType(
-                    user.user_type
-                  );
+            <div className="
+              space-y-4
+            ">
 
 
-                const isAdmin =
-                  user.user_type ===
-                  "admin";
+              {/* ==================================================
+                  USER LIST
+              =================================================== */}
+
+              {filteredUsers.map(
+                (user) => {
+
+                  const currentType =
+                    normalizeUserType(
+                      user.user_type
+                    );
 
 
-                const isUpdatingThisUser =
-                  updatingUserId ===
-                  user.id;
+                  const currentStatus =
+                    normalizeAccountStatus(
+                      user.account_status
+                    );
 
 
-                return (
-
-                  <div
-                    key={user.id}
-                    className="
-                      border
-                      rounded-lg
-                      p-4
-                      hover:bg-slate-50
-                      transition-colors
-                    "
-                  >
-
-                    <div className="
-                      flex
-                      flex-col
-                      lg:flex-row
-                      lg:items-center
-                      lg:justify-between
-                      gap-4
-                    ">
+                  const isAdmin =
+                    user.user_type ===
+                    "admin";
 
 
-                      {/* ====================================
-                          USER INFORMATION
-                      ===================================== */}
+                  const isUpdatingThisUser =
+                    updatingUserId ===
+                    user.id;
 
-                      <div className="flex items-center gap-3">
 
-                        <Avatar className="w-12 h-12">
+                  return (
 
-                          <AvatarImage
-                            src={
-                              user.profile_image
-                            }
-                          />
+                    <div
+                      key={user.id}
+                      className="
+                        border
+                        rounded-lg
+                        p-4
+                        hover:bg-slate-50
+                        transition-colors
+                      "
+                    >
 
-                          <AvatarFallback
+                      <div className="
+                        flex
+                        flex-col
+                        xl:flex-row
+                        xl:items-center
+                        xl:justify-between
+                        gap-4
+                      ">
+
+
+                        {/* ========================================
+                            USER DETAILS
+                        ========================================= */}
+
+                        <div className="
+                          flex
+                          items-center
+                          gap-3
+                        ">
+
+                          <Avatar
                             className="
-                              bg-blue-100
-                              text-blue-700
-                              font-semibold
+                              w-12
+                              h-12
                             "
                           >
 
-                            {(
-                              user.full_name
-                                ?.charAt(0) ||
+                            <AvatarImage
+                              src={
+                                user.profile_image
+                              }
+                            />
 
-                              user.email
-                                ?.charAt(0) ||
+                            <AvatarFallback
+                              className="
+                                bg-blue-100
+                                text-blue-700
+                                font-semibold
+                              "
+                            >
 
-                              "U"
-                            ).toUpperCase()}
+                              {(
+                                user.full_name
+                                  ?.charAt(0) ||
 
-                          </AvatarFallback>
+                                user.email
+                                  ?.charAt(0) ||
 
-                        </Avatar>
+                                "U"
+                              ).toUpperCase()}
 
+                            </AvatarFallback>
 
-                        <div>
-
-                          <h4 className="
-                            font-semibold
-                            text-slate-900
-                          ">
-
-                            {user.full_name ||
-                              "Unnamed User"}
-
-                          </h4>
-
-
-                          <p className="
-                            text-sm
-                            text-slate-600
-                          ">
-
-                            {user.email ||
-                              "No email"}
-
-                          </p>
+                          </Avatar>
 
 
-                          <p className="
-                            text-xs
-                            text-slate-400
-                          ">
+                          <div>
 
-                            ID: {user.id}
+                            <h4 className="
+                              font-semibold
+                              text-slate-900
+                            ">
 
-                          </p>
+                              {user.full_name ||
+                                "Unnamed User"}
+
+                            </h4>
 
 
-                          {user.created_date && (
+                            <p className="
+                              text-sm
+                              text-slate-600
+                            ">
+
+                              {user.email ||
+                                "No email"}
+
+                            </p>
+
 
                             <p className="
                               text-xs
                               text-slate-400
                             ">
 
-                              Joined:{" "}
-
-                              {new Date(
-                                user.created_date
-                              ).toLocaleDateString()}
+                              ID: {user.id}
 
                             </p>
+
+
+                            {user.created_date && (
+
+                              <p className="
+                                text-xs
+                                text-slate-400
+                              ">
+
+                                Joined:{" "}
+
+                                {new Date(
+                                  user.created_date
+                                ).toLocaleDateString()}
+
+                              </p>
+
+                            )}
+
+                          </div>
+
+                        </div>
+
+
+                        {/* ========================================
+                            MANAGEMENT CONTROLS
+                        ========================================= */}
+
+                        <div className="
+                          flex
+                          flex-col
+                          md:flex-row
+                          md:items-center
+                          gap-3
+                        ">
+
+
+                          {/* ROLE BADGE */}
+
+                          <Badge
+                            className={`
+                              ${getUserTypeColor(
+                                user.user_type
+                              )}
+                            `}
+                          >
+
+                            {getUserTypeLabel(
+                              user.user_type
+                            )}
+
+                          </Badge>
+
+
+                          {/* STATUS BADGE */}
+
+                          <Badge
+                            className={`
+                              ${getAccountStatusColor(
+                                currentStatus
+                              )}
+                            `}
+                          >
+
+                            {getAccountStatusLabel(
+                              currentStatus
+                            )}
+
+                          </Badge>
+
+
+                          {/* ROLE DROPDOWN */}
+
+                          {isAdmin ? (
+
+                            <div className="
+                              flex
+                              items-center
+                              gap-2
+                            ">
+
+                              <ShieldCheck
+                                className="
+                                  w-4
+                                  h-4
+                                  text-red-600
+                                "
+                              />
+
+                              <span className="
+                                text-sm
+                                text-red-700
+                                font-medium
+                              ">
+
+                                Admin
+
+                              </span>
+
+                            </div>
+
+                          ) : (
+
+                            <Select
+                              value={
+                                currentType
+                              }
+                              onValueChange={(
+                                value
+                              ) =>
+                                handleUserTypeChange(
+                                  user,
+                                  value
+                                )
+                              }
+                              disabled={
+                                isUpdatingThisUser ||
+                                isUpdating
+                              }
+                            >
+
+                              <SelectTrigger
+                                className="
+                                  w-full
+                                  md:w-36
+                                "
+                              >
+
+                                <SelectValue />
+
+                              </SelectTrigger>
+
+
+                              <SelectContent>
+
+                                {USER_TYPES.map(
+                                  (type) => (
+
+                                    <SelectItem
+                                      key={
+                                        type.value
+                                      }
+                                      value={
+                                        type.value
+                                      }
+                                    >
+
+                                      {type.label}
+
+                                    </SelectItem>
+
+                                  )
+                                )}
+
+                              </SelectContent>
+
+                            </Select>
+
+                          )}
+
+
+                          {/* STATUS DROPDOWN */}
+
+                          {!isAdmin && (
+
+                            <Select
+                              value={
+                                currentStatus
+                              }
+                              onValueChange={(
+                                value
+                              ) =>
+                                handleAccountStatusChange(
+                                  user,
+                                  value
+                                )
+                              }
+                              disabled={
+                                isUpdatingThisUser ||
+                                isUpdating
+                              }
+                            >
+
+                              <SelectTrigger
+                                className="
+                                  w-full
+                                  md:w-36
+                                "
+                              >
+
+                                <SelectValue />
+
+                              </SelectTrigger>
+
+
+                              <SelectContent>
+
+                                {ACCOUNT_STATUSES.map(
+                                  (status) => (
+
+                                    <SelectItem
+                                      key={
+                                        status.value
+                                      }
+                                      value={
+                                        status.value
+                                      }
+                                    >
+
+                                      {status.label}
+
+                                    </SelectItem>
+
+                                  )
+                                )}
+
+                              </SelectContent>
+
+                            </Select>
 
                           )}
 
@@ -821,139 +1453,16 @@ export default function AdminTutorManagement() {
 
                       </div>
 
-
-                      {/* ====================================
-                          ROLE MANAGEMENT
-                      ===================================== */}
-
-                      <div className="
-                        flex
-                        flex-col
-                        sm:flex-row
-                        sm:items-center
-                        gap-3
-                      ">
-
-
-                        {/* CURRENT ROLE BADGE */}
-
-                        <Badge
-                          className={`
-                            ${getUserTypeColor(
-                              user.user_type
-                            )}
-                            capitalize
-                          `}
-                        >
-
-                          {getUserTypeLabel(
-                            user.user_type
-                          )}
-
-                        </Badge>
-
-
-                        {/* ROLE DROPDOWN */}
-
-                        {isAdmin ? (
-
-                          <div className="
-                            flex
-                            items-center
-                            gap-2
-                          ">
-
-                            <ShieldCheck
-                              className="
-                                w-4
-                                h-4
-                                text-red-600
-                              "
-                            />
-
-                            <span className="
-                              text-sm
-                              text-red-700
-                              font-medium
-                            ">
-
-                              Admin account
-
-                            </span>
-
-                          </div>
-
-                        ) : (
-
-                          <Select
-                            value={
-                              currentType
-                            }
-                            onValueChange={(
-                              value
-                            ) =>
-                              handleUserTypeChange(
-                                user,
-                                value
-                              )
-                            }
-                            disabled={
-                              isUpdatingThisUser ||
-                              isUpdating
-                            }
-                          >
-
-                            <SelectTrigger
-                              className="w-44"
-                            >
-
-                              <SelectValue
-                                placeholder="Select role"
-                              />
-
-                            </SelectTrigger>
-
-
-                            <SelectContent>
-
-                              {USER_TYPES.map(
-                                (type) => (
-
-                                  <SelectItem
-                                    key={
-                                      type.value
-                                    }
-                                    value={
-                                      type.value
-                                    }
-                                  >
-
-                                    {type.label}
-
-                                  </SelectItem>
-
-                                )
-                              )}
-
-                            </SelectContent>
-
-                          </Select>
-
-                        )}
-
-                      </div>
-
                     </div>
 
-                  </div>
+                  );
 
-                );
-
-              })}
+                }
+              )}
 
 
               {/* ==================================================
-                  NO USERS
+                  NO RESULTS
               =================================================== */}
 
               {filteredUsers.length === 0 && (
@@ -967,8 +1476,8 @@ export default function AdminTutorManagement() {
                     text-slate-500
                   ">
 
-                    No users found for
-                    this filter.
+                    No users found
+                    for this filter.
 
                   </p>
 
@@ -986,7 +1495,7 @@ export default function AdminTutorManagement() {
 
 
       {/* ======================================================
-          ROLE CHANGE CONFIRMATION
+          CONFIRMATION DIALOG
       ======================================================= */}
 
       <AlertDialog
@@ -1014,68 +1523,15 @@ export default function AdminTutorManagement() {
           <AlertDialogHeader>
 
             <AlertDialogTitle>
-              Change User Type?
+
+              {getConfirmationTitle()}
+
             </AlertDialogTitle>
 
 
             <AlertDialogDescription>
 
-              {pendingChange && (
-
-                <span>
-
-                  You are changing{" "}
-
-                  <strong>
-
-                    {
-                      pendingChange.user
-                        .full_name ||
-                      pendingChange.user
-                        .email
-                    }
-
-                  </strong>
-
-                  {" "}from{" "}
-
-                  <strong>
-
-                    {getUserTypeLabel(
-                      pendingChange.currentType
-                    )}
-
-                  </strong>
-
-                  {" "}to{" "}
-
-                  <strong>
-
-                    {getUserTypeLabel(
-                      pendingChange.newType
-                    )}
-
-                  </strong>
-
-                  .
-
-
-                  <br />
-                  <br />
-
-
-                  This changes the role
-                  of the existing ACAD
-                  account.
-
-                  <br />
-
-                  No new user account
-                  will be created.
-
-                </span>
-
-              )}
+              {getConfirmationDescription()}
 
             </AlertDialogDescription>
 
@@ -1095,19 +1551,26 @@ export default function AdminTutorManagement() {
 
             <AlertDialogAction
               onClick={
-                confirmUserTypeChange
+                confirmChange
               }
               disabled={isUpdating}
-              className="
-                bg-blue-600
-                hover:bg-blue-700
+              className={`
                 text-white
-              "
+                ${
+                  pendingChange?.newValue ===
+                  "deleted"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }
+              `}
             >
 
               {isUpdating
                 ? "Updating..."
-                : "Yes, Change Role"}
+                : pendingChange?.newValue ===
+                  "deleted"
+                ? "Yes, Mark Deleted"
+                : "Yes, Update"}
 
             </AlertDialogAction>
 
