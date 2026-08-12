@@ -35,6 +35,10 @@ import {
   scheduleClass,
 } from "./classroomFunctions.js";
 
+import {
+  calendarStatus,
+} from "./calendarStatus.js";
+
 import { invokeLLM } from "./llm.js";
 
 import {
@@ -789,6 +793,65 @@ app.get(
     )
 );
 
+
+/*
+ * ---------- Google Calendar Status ----------
+ *
+ * Returns whether the currently logged-in user
+ * has connected Google Calendar.
+ *
+ * The Google refresh token is NEVER returned
+ * to the browser.
+ */
+app.get(
+  "/api/auth/calendar/status",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          connected: false,
+          error: "Not authenticated",
+        },
+        401
+      );
+    }
+
+    try {
+
+      const result =
+        await calendarStatus(
+          c.env,
+          user
+        );
+
+      return c.json(result);
+
+    } catch (error) {
+
+      console.error(
+        "Calendar status failed:",
+        error
+      );
+
+      return c.json(
+        {
+          connected: false,
+          error:
+            error?.message ||
+            "Unable to check Google Calendar connection.",
+        },
+        500
+      );
+    }
+  }
+);
 
 /*
  * ---------- Classroom ----------
