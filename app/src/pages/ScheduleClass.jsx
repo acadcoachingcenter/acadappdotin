@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { Course } from "@/entities/Course";
 import { Enrollment } from "@/entities/Enrollment";
 import { apiClient } from "@/api/apiClient";
+import GoogleCalendarConnect from "@/components/classroom/GoogleCalendarConnect";
 
 import {
   Card,
@@ -326,10 +327,8 @@ export default function ScheduleClass() {
         start_time: startTime,
         end_time: endTime,
 
-        meet_link:
-          meetLink.trim() ||
-          DEFAULT_MEET_LINK,
-
+        const DEFAULT_MEET_LINK =
+        "https://meet.google.com/wsb-ztxe-kwc";
         reminder_minutes: 10,
       };
 
@@ -407,6 +406,7 @@ export default function ScheduleClass() {
           </p>
         </div>
       </div>
+      <GoogleCalendarConnect />
 
       {successMessage && (
         <Card className="border-green-200 bg-green-50">
