@@ -327,8 +327,7 @@ export default function ScheduleClass() {
         start_time: startTime,
         end_time: endTime,
 
-        const DEFAULT_MEET_LINK =
-        "https://meet.google.com/wsb-ztxe-kwc";
+        
         reminder_minutes: 10,
       };
 
