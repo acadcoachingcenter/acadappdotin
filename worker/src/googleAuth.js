@@ -310,7 +310,7 @@ export async function googleCallback(
           created_date,
           updated_date
         )
-        VALUES (?, ?, ?, ?, 'student', datetime('now'), datetime('now'))`
+        VALUES (?, ?, ?, ?, NULL, datetime('now'), datetime('now'))`
       )
       .bind(
         id,
