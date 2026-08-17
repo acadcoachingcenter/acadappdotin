@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import { apiClient } from "@/api/apiClient";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,17 +21,17 @@ export default function TutorDashboard() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const userData = await base44.auth.me();
+      const userData = await apiClient.auth.me();
       setUser(userData);
       
       if (userData && userData.id) {
         // Get ALL courses and filter manually in JavaScript, sorted by creation date
-        const allCourses = await base44.entities.Course.list("-created_date");
+        const allCourses = await apiClient.entities.Course.list("-created_date");
         const tutorCourses = allCourses.filter(course => course.tutor_id === userData.id);
         setCourses(tutorCourses);
         
         // Get all enrollments for tutor's courses (only active/approved ones)
-        const allEnrollments = await base44.entities.Enrollment.list("-created_date");
+        const allEnrollments = await apiClient.entities.Enrollment.list("-created_date");
         const tutorEnrollments = allEnrollments.filter(enrollment => 
           enrollment.tutor_id === userData.id && 
           enrollment.status === 'active'
