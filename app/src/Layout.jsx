@@ -248,6 +248,13 @@ export default function Layout({ children, currentPageName }) {
   icon: Video,
   external: true,
 },
+
+{
+  title: "Revision",
+  url: "https://revision.acadapp.in",
+  icon: ClipboardList,
+  external: true,
+},
     
     {
       title: "Academic Essentials",
