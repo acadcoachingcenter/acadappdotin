@@ -32,6 +32,7 @@ const SUBJECTS = [
   "Tamil",
   "Hindi",
   "Computer Science",
+  "Accountancy"
 ];
 
 function todayIST() {
