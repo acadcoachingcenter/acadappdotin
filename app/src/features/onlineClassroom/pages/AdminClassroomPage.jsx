@@ -64,6 +64,12 @@ function iso(date, time) {
   return `${date}T${time}:00${INDIA_OFFSET}`;
 }
 
+function addDays(dateStr, days) {
+  const d = new Date(`${dateStr}T00:00:00${INDIA_OFFSET}`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function emptyForm() {
   const date = todayIST();
   return {
@@ -75,6 +81,7 @@ function emptyForm() {
     timeSlot: "morning",
     tutorId: "",
     studentIds: [],
+    repeatWeeks: 1,
   };
 }
 
@@ -106,6 +113,7 @@ export default function AdminClassroomPage({ user }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [syncingId, setSyncingId] = useState(null);
+  const [syncingAll, setSyncingAll] = useState(false);
   const [message, setMessage] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
 
@@ -195,47 +203,68 @@ export default function AdminClassroomPage({ user }) {
     const tutor = tutors.find((t) => t.id === form.tutorId);
     const selectedStudents = students.filter((s) => form.studentIds.includes(s.id));
     const slot = TIME_SLOTS.find((s) => s.id === form.timeSlot) || TIME_SLOTS[0];
+    const weeks = editingId ? 1 : Math.max(1, Number(form.repeatWeeks) || 1);
 
-    const classData = {
-      grade: Number(form.grade),
-      subject: day === "Friday" ? "Revision / Weekly Test" : form.subject,
-      batchName: form.batchName || slot.name,
-      tutor: {
-        id: tutor.id,
-        name: tutor.full_name || tutor.email,
-        email: tutor.email,
-        // Sourced directly from the tutor's own ACAD profile - no manual
-        // entry. Tutors without a phone on file simply won't get a
-        // WhatsApp message; they still get the Calendar invite + email.
-        phone: tutor.phone || "",
-      },
-      students: selectedStudents.map((s) => ({
-        id: s.id,
-        name: s.full_name || s.email,
-        email: s.email,
-        phone: s.phone || "",
-      })),
-      durationMinutes: 60,
-      schedule: {
-        day,
-        date: form.date,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        startTimeISO: iso(form.date, slot.startTime),
-      },
-      status: "scheduled",
-    };
+    function buildClassData(dateStr, dayStr) {
+      return {
+        grade: Number(form.grade),
+        subject: dayStr === "Friday" ? "Revision / Weekly Test" : form.subject,
+        batchName: form.batchName || slot.name,
+        tutor: {
+          id: tutor.id,
+          name: tutor.full_name || tutor.email,
+          email: tutor.email,
+          // Sourced directly from the tutor's own ACAD profile - no manual
+          // entry. Tutors without a phone on file simply won't get a
+          // WhatsApp message; they still get the Calendar invite + email.
+          phone: tutor.phone || "",
+        },
+        students: selectedStudents.map((s) => ({
+          id: s.id,
+          name: s.full_name || s.email,
+          email: s.email,
+          phone: s.phone || "",
+        })),
+        durationMinutes: 60,
+        schedule: {
+          day: dayStr,
+          date: dateStr,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          startTimeISO: iso(dateStr, slot.startTime),
+        },
+        status: "scheduled",
+      };
+    }
 
     setSaving(true);
     setMessage("");
 
     try {
       if (editingId) {
-        await updateClass(editingId, classData);
+        await updateClass(editingId, buildClassData(form.date, day));
         setMessage("Class updated. Click Google Calendar to send/update the invitations.");
-      } else {
-        await createClass(classData);
+      } else if (weeks === 1) {
+        await createClass(buildClassData(form.date, day));
         setMessage("Class created. Click Google Calendar to notify the tutor and students.");
+      } else {
+        // Weekly repeat: create N independent class rows, 7 days apart.
+        // Each is its own row with its own Meet link once synced - editing
+        // or deleting one later never affects the others in the series.
+        let created = 0;
+        for (let i = 0; i < weeks; i++) {
+          const occurrenceDate = addDays(form.date, i * 7);
+          const occurrenceDay = dayFromDate(occurrenceDate);
+          // Skip if a repeat lands on a weekend (shouldn't normally happen
+          // since the base date is validated as a weekday, but guards
+          // against odd date-math edge cases).
+          if (occurrenceDay === "Saturday" || occurrenceDay === "Sunday") continue;
+          await createClass(buildClassData(occurrenceDate, occurrenceDay));
+          created++;
+        }
+        setMessage(
+          `Created ${created} classes, one every week starting ${form.date}. Click Google Calendar on each to notify the tutor and students for that date.`
+        );
       }
       closeEditor();
       await refresh();
@@ -270,6 +299,39 @@ export default function AdminClassroomPage({ user }) {
     }
   }
 
+  async function handleSyncAll() {
+    const unsynced = classes.filter((c) => !c.meetUrl);
+    if (!unsynced.length) {
+      setMessage("Every class already has a Meet link.");
+      return;
+    }
+
+    setSyncingAll(true);
+    setMessage("");
+    let succeeded = 0;
+    let failed = 0;
+
+    // Sequential, not parallel - avoids hammering the Calendar/WhatsApp
+    // Worker with a burst of simultaneous requests when syncing a whole
+    // repeat series (e.g. 12 weekly classes) at once.
+    for (const c of unsynced) {
+      try {
+        await syncClassToCalendar(c);
+        succeeded++;
+      } catch (err) {
+        console.error(`Sync failed for class ${c.id}:`, err);
+        failed++;
+      }
+    }
+
+    setMessage(
+      `Synced ${succeeded} class${succeeded === 1 ? "" : "es"}.` +
+        (failed ? ` ${failed} failed - check those individually.` : "")
+    );
+    await refresh();
+    setSyncingAll(false);
+  }
+
   async function handleDelete(c) {
     if (!window.confirm(`Delete ${c.subject} - ${c.batchName}?`)) return;
     try {
@@ -293,13 +355,23 @@ export default function AdminClassroomPage({ user }) {
             login/user records.
           </p>
         </div>
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          <Plus size={17} />
-          Schedule Class
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSyncAll}
+            disabled={syncingAll}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 disabled:opacity-50"
+          >
+            <CalendarDays size={17} />
+            {syncingAll ? "Syncing…" : "Sync All Unsynced"}
+          </button>
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            <Plus size={17} />
+            Schedule Class
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -419,6 +491,26 @@ export default function AdminClassroomPage({ user }) {
                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
               />
             </label>
+
+            {!editingId && (
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-900">Repeat</span>
+                <select
+                  value={form.repeatWeeks}
+                  onChange={(e) => setForm({ ...form, repeatWeeks: Number(e.target.value) })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                >
+                  <option value={1}>Just this once</option>
+                  <option value={4}>Every week for 1 month (4 classes)</option>
+                  <option value={8}>Every week for 2 months (8 classes)</option>
+                  <option value={12}>Every week for 3 months (12 classes)</option>
+                </select>
+                <span className="mt-1 block text-xs text-slate-600">
+                  Creates one independent class per week, same day/time. Editing or deleting one
+                  later won't affect the others.
+                </span>
+              </label>
+            )}
 
             <label className="text-sm md:col-span-2 lg:col-span-3">
               <span className="mb-1 block font-medium text-slate-900">Tutor</span>
