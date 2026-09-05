@@ -5,6 +5,7 @@ import {
   decodeClassMeta,
   deleteClass,
   listAcadUsers,
+  listActiveEnrolledStudents,
   listClassesForUser,
   syncClassToCalendar,
   updateClass,
@@ -106,6 +107,7 @@ export default function AdminClassroomPage({ user }) {
   const [saving, setSaving] = useState(false);
   const [syncingId, setSyncingId] = useState(null);
   const [message, setMessage] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
 
   async function refresh() {
     setLoading(true);
@@ -113,7 +115,7 @@ export default function AdminClassroomPage({ user }) {
       const [classRows, tutorRows, studentRows] = await Promise.all([
         listClassesForUser(user),
         listAcadUsers("tutor"),
-        listAcadUsers("student"),
+        listActiveEnrolledStudents(),
       ]);
       setClasses(classRows);
       setTutors(tutorRows);
@@ -440,28 +442,55 @@ export default function AdminClassroomPage({ user }) {
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-900">
                 <Users size={16} />
                 Students
+                <span className="font-normal text-slate-500">
+                  (from active enrollments — {students.length} total)
+                </span>
               </div>
+              <input
+                type="text"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder="Search by name or email…"
+                className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
               <div className="max-h-56 overflow-auto rounded-lg border border-slate-300 p-3">
                 {students.length === 0 ? (
-                  <p className="text-sm text-slate-600">No ACAD student accounts found.</p>
+                  <p className="text-sm text-slate-600">No active enrolled students found.</p>
                 ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {students.map((s) => (
-                      <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-slate-50">
-                        <input
-                          type="checkbox"
-                          checked={form.studentIds.includes(s.id)}
-                          onChange={() => toggleStudent(s.id)}
-                        />
-                        <span className="text-sm">
-                          <strong>{s.full_name || s.email}</strong>
-                          <span className="ml-1 text-slate-500">
-                            ({s.email}{s.phone ? `, ${s.phone}` : ", no phone on file"})
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
+                  (() => {
+                    const q = studentSearch.trim().toLowerCase();
+                    const filtered = q
+                      ? students.filter(
+                          (s) =>
+                            s.full_name.toLowerCase().includes(q) ||
+                            s.email.toLowerCase().includes(q)
+                        )
+                      : students;
+
+                    if (filtered.length === 0) {
+                      return <p className="text-sm text-slate-600">No students match "{studentSearch}".</p>;
+                    }
+
+                    return (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {filtered.map((s) => (
+                          <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={form.studentIds.includes(s.id)}
+                              onChange={() => toggleStudent(s.id)}
+                            />
+                            <span className="text-sm">
+                              <strong>{s.full_name}</strong>
+                              <span className="ml-1 text-slate-500">
+                                ({s.email || "no email"}{s.phone ? `, ${s.phone}` : ", no phone on file"})
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })()
                 )}
               </div>
             </div>

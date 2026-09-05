@@ -133,6 +133,48 @@ export async function listAcadUsers(type) {
     .sort((a, b) => String(a.full_name || a.email).localeCompare(String(b.full_name || b.email)));
 }
 
+// Students for the class-scheduling picker come from active Enrollment
+// records (AdminEnrollmentManagement), not raw User signups - many
+// students are added directly by admin during enrollment and never
+// separately create/complete a full ACAD account, so the `users` table
+// alone misses them. Enrollment records also already carry the WhatsApp
+// number collected at enrollment time, which is exactly what's needed here.
+export async function listActiveEnrolledStudents() {
+  const rows = await apiClient.entities.Enrollment.list("-created_date", 1000);
+  const enrollments = Array.isArray(rows) ? rows : [];
+
+  const byEmail = new Map();
+
+  for (const e of enrollments) {
+    if (e.status !== "active") continue;
+
+    const email = (e.student_email || "").trim().toLowerCase();
+    // Some numbers were entered with a leading apostrophe (a spreadsheet
+    // text-format artifact) or spaces - strip everything but digits.
+    const phone = (e.student_whatsapp || "").replace(/[^\d]/g, "");
+    const key = email || `whatsapp:${phone}`;
+    if (!key) continue;
+
+    // One student may have multiple active enrollments (different
+    // courses/tutors) - keep one entry per student for the picker, merging
+    // in a phone number if an earlier record for the same student lacked one.
+    const existing = byEmail.get(key);
+    if (existing) {
+      if (!existing.phone && phone) existing.phone = phone;
+      continue;
+    }
+
+    byEmail.set(key, {
+      id: e.student_id || e.id,
+      full_name: e.student_name || e.student_email || e.student_whatsapp || "Student",
+      email: e.student_email || "",
+      phone,
+    });
+  }
+
+  return [...byEmail.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
+}
+
 export async function listClassesForUser(user) {
   if (!user) return [];
 
