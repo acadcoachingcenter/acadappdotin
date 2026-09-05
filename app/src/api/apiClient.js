@@ -129,7 +129,14 @@ function makeEntityClient(
       return apiFetch(
         `/api/entities/${name}${
           qs ? `?${qs}` : ""
-        }`
+        }`,
+        {
+          // Without this, the browser (or an intermediate cache) can serve
+          // a stale GET response right after a write - e.g. a class list
+          // still showing "no Meet link" immediately after a sync just
+          // wrote one, until a manual page reload bypasses the cache.
+          cache: "no-store",
+        }
       );
     },
 
