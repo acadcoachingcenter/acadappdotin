@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardList, Phone, Mail, UserPlus, Search, CheckCircle, Clock, XCircle, Filter, GraduationCap } from "lucide-react";
+import { ClipboardList, Phone, Mail, UserPlus, Search, CheckCircle, Clock, XCircle, Filter, GraduationCap, Trash2 } from "lucide-react";
 import { format } from 'date-fns';
 import EnrollStudentModal from "@/components/admin/EnrollStudentModal";
 
@@ -67,6 +67,24 @@ export default function AdminInquiryManagement() {
     }
   };
 
+  const handleDeleteInquiry = async (inquiry) => {
+    if (
+      !window.confirm(
+        `Delete this inquiry from ${inquiry.student_name || inquiry.email}? This only removes the inquiry record itself - if a real Enrollment was already created for them, that stays intact.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await apiClient.entities.Inquiry.delete(inquiry.id);
+      fetchInquiries();
+    } catch (error) {
+      console.error("Failed to delete inquiry:", error);
+      alert("Error deleting inquiry. Please try again.");
+    }
+  };
+
   const handleCallStudent = (phone) => {
     window.open(`tel:${phone}`);
   };
@@ -82,6 +100,7 @@ export default function AdminInquiryManagement() {
 
   const handleEnrollClick = (inquiry) => {
     setEnrollInitialData({
+      inquiryId: inquiry.id,
       studentName: inquiry.student_name || "",
       studentEmail: inquiry.email || "",
       studentWhatsApp: inquiry.phone || "",
@@ -355,7 +374,7 @@ export default function AdminInquiryManagement() {
                       {inquiry.status === 'contacted' && (
                         <>
                           <Button 
-                            onClick={() => handleUpdateStatus(inquiry.id, 'enrolled')}
+                            onClick={() => handleEnrollClick(inquiry)}
                             size="sm"
                             className="w-full bg-green-600 hover:bg-green-700"
                           >
@@ -401,7 +420,7 @@ export default function AdminInquiryManagement() {
                       )}
                     </div>
 
-                    <div className="border-t pt-3">
+                    <div className="border-t pt-3 space-y-2">
                       <Button 
                         variant="outline"
                         size="sm"
@@ -412,6 +431,16 @@ export default function AdminInquiryManagement() {
                       >
                         <UserPlus className="w-4 h-4 mr-2" />
                         How to Invite?
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => handleDeleteInquiry(inquiry)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Inquiry
                       </Button>
                     </div>
                   </div>
@@ -426,7 +455,10 @@ export default function AdminInquiryManagement() {
         open={enrollModalOpen}
         onOpenChange={setEnrollModalOpen}
         initialData={enrollInitialData}
-        onEnrollmentSuccess={() => {
+        onEnrollmentSuccess={async () => {
+          if (enrollInitialData?.inquiryId) {
+            await handleUpdateStatus(enrollInitialData.inquiryId, 'enrolled');
+          }
           setEnrollModalOpen(false);
           setEnrollInitialData(null);
         }}
