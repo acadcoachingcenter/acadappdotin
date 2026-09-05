@@ -1,0 +1,208 @@
+{
+  "name": "Calendar Meet Link -> WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "calendarId": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "triggerOn": "eventUpdated",
+        "options": {}
+      },
+      "id": "1a1a1a1a-0001-0001-0001-000000000001",
+      "name": "Google Calendar Trigger",
+      "type": "n8n-nodes-base.googleCalendarTrigger",
+      "typeVersion": 1,
+      "position": [-200, 0],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Google Calendar account (host)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const event = $input.first().json;\n\nconst meetEntry = (event.conferenceData?.entryPoints || [])\n  .find(e => e.entryPointType === 'video');\nconst meetLink = meetEntry ? meetEntry.uri : null;\n\nconst attendees = (event.attendees || [])\n  .filter(a => !a.self && !a.resource && a.email);\n\nif (!meetLink || attendees.length === 0) {\n  return [];\n}\n\nreturn attendees.map(a => ({\n  json: {\n    event_id: event.id,\n    event_summary: event.summary || 'Meeting',\n    start_time: event.start?.dateTime || event.start?.date,\n    meet_link: meetLink,\n    attendee_email: String(a.email).toLowerCase(),\n    attendee_name: a.displayName || a.email\n  }\n}));"
+      },
+      "id": "1a1a1a1a-0002-0002-0002-000000000002",
+      "name": "Extract Meet Link & Attendees",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [20, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://calendar-whatsapp-lookup.YOUR-SUBDOMAIN.workers.dev/already-sent?event_id={{ $json.event_id }}&email={{ $json.attendee_email }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $vars.WORKER_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a1a1a1a-0003-0003-0003-000000000003",
+      "name": "Check Already Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.sent }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "false" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1a1a1a1a-0004-0004-0004-000000000004",
+      "name": "IF Not Already Sent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://calendar-whatsapp-lookup.YOUR-SUBDOMAIN.workers.dev/lookup?email={{ $('Extract Meet Link & Attendees').item.json.attendee_email }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $vars.WORKER_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a1a1a1a-0005-0005-0005-000000000005",
+      "name": "Lookup Phone Number",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, -80]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.found }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1a1a1a1a-0006-0006-0006-000000000006",
+      "name": "IF Phone Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{ $vars.META_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $vars.META_WHATSAPP_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.whatsapp_number }}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"meeting_link_notify\",\n    \"language\": { \"code\": \"en\" },\n    \"components\": [\n      {\n        \"type\": \"body\",\n        \"parameters\": [\n          { \"type\": \"text\", \"text\": \"{{ $json.name || $json.email }}\" },\n          { \"type\": \"text\", \"text\": \"{{ $('Extract Meet Link & Attendees').item.json.event_summary }}\" },\n          { \"type\": \"text\", \"text\": \"{{ $('Extract Meet Link & Attendees').item.json.start_time }}\" },\n          { \"type\": \"text\", \"text\": \"{{ $('Extract Meet Link & Attendees').item.json.meet_link }}\" }\n        ]\n      }\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "1a1a1a1a-0007-0007-0007-000000000007",
+      "name": "Send WhatsApp Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, -160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://calendar-whatsapp-lookup.YOUR-SUBDOMAIN.workers.dev/log-send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $vars.WORKER_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event_id\": \"{{ $('Extract Meet Link & Attendees').item.json.event_id }}\",\n  \"attendee_email\": \"{{ $('Extract Meet Link & Attendees').item.json.attendee_email }}\",\n  \"whatsapp_number\": \"{{ $('Lookup Phone Number').item.json.whatsapp_number }}\",\n  \"status\": \"sent\",\n  \"meet_link\": \"{{ $('Extract Meet Link & Attendees').item.json.meet_link }}\"\n}",
+        "options": {}
+      },
+      "id": "1a1a1a1a-0008-0008-0008-000000000008",
+      "name": "Log Send Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, -160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://calendar-whatsapp-lookup.YOUR-SUBDOMAIN.workers.dev/log-send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "={{ $vars.WORKER_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event_id\": \"{{ $('Extract Meet Link & Attendees').item.json.event_id }}\",\n  \"attendee_email\": \"{{ $('Extract Meet Link & Attendees').item.json.attendee_email }}\",\n  \"whatsapp_number\": null,\n  \"status\": \"skipped_no_number\",\n  \"meet_link\": \"{{ $('Extract Meet Link & Attendees').item.json.meet_link }}\"\n}",
+        "options": {}
+      },
+      "id": "1a1a1a1a-0009-0009-0009-000000000009",
+      "name": "Log Send Skipped (No Number)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 40]
+    }
+  ],
+  "connections": {
+    "Google Calendar Trigger": {
+      "main": [[{ "node": "Extract Meet Link & Attendees", "type": "main", "index": 0 }]]
+    },
+    "Extract Meet Link & Attendees": {
+      "main": [[{ "node": "Check Already Sent", "type": "main", "index": 0 }]]
+    },
+    "Check Already Sent": {
+      "main": [[{ "node": "IF Not Already Sent", "type": "main", "index": 0 }]]
+    },
+    "IF Not Already Sent": {
+      "main": [
+        [{ "node": "Lookup Phone Number", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Lookup Phone Number": {
+      "main": [[{ "node": "IF Phone Found", "type": "main", "index": 0 }]]
+    },
+    "IF Phone Found": {
+      "main": [
+        [{ "node": "Send WhatsApp Template", "type": "main", "index": 0 }],
+        [{ "node": "Log Send Skipped (No Number)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send WhatsApp Template": {
+      "main": [[{ "node": "Log Send Success", "type": "main", "index": 0 }]]
+    }
+  }
+}
