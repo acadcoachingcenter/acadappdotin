@@ -604,6 +604,15 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
+          title: "Online Classroom",
+          url:
+            createPageUrl(
+              "OnlineClassroom"
+            ),
+          icon: Video,
+        },
+
+        {
           title: "AI Paper Generator",
           url:
             createPageUrl(
@@ -721,6 +730,15 @@ export default function Layout({ children, currentPageName }) {
               "StudentDashboard"
             ),
           icon: Home,
+        },
+
+        {
+          title: "Online Classroom",
+          url:
+            createPageUrl(
+              "OnlineClassroom"
+            ),
+          icon: Video,
         },
 
         {
@@ -983,6 +1001,15 @@ export default function Layout({ children, currentPageName }) {
               "TutorDashboard"
             ),
           icon: Home,
+        },
+
+        {
+          title: "Online Classroom",
+          url:
+            createPageUrl(
+              "OnlineClassroom"
+            ),
+          icon: Video,
         },
 
         {

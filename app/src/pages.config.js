@@ -72,6 +72,7 @@ import MyStudyMaterials from './pages/MyStudyMaterials';
 import MyTuitionRequests from './pages/MyTuitionRequests';
 import NeetJeeSupport from './pages/NeetJeeSupport';
 import Onboarding from './pages/Onboarding';
+import OnlineClassroom from './pages/OnlineClassroom';
 import ParentDashboard from './pages/ParentDashboard';
 import PostTuitionRequest from './pages/PostTuitionRequest';
 import Profile from './pages/Profile';
@@ -110,6 +111,7 @@ export const PAGES = {
     "MyTuitionRequests": MyTuitionRequests,
     "NeetJeeSupport": NeetJeeSupport,
     "Onboarding": Onboarding,
+    "OnlineClassroom": OnlineClassroom,
     "ParentDashboard": ParentDashboard,
     "PostTuitionRequest": PostTuitionRequest,
     "Profile": Profile,
