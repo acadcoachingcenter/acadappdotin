@@ -126,6 +126,12 @@ export default function AdminTutorManagement() {
   const [isUpdating, setIsUpdating] =
     useState(false);
 
+  const [phoneDrafts, setPhoneDrafts] =
+    useState({});
+
+  const [savingPhoneId, setSavingPhoneId] =
+    useState(null);
+
 
   /* ==========================================================
      LOAD USERS
@@ -511,6 +517,56 @@ export default function AdminTutorManagement() {
 
 
   /* ==========================================================
+     PHONE NUMBER EDITING
+  ========================================================== */
+
+  const getPhoneDraft = (user) =>
+    phoneDrafts[user.id] !== undefined
+      ? phoneDrafts[user.id]
+      : user.phone || "";
+
+  const handlePhoneDraftChange = (user, value) => {
+    setPhoneDrafts((prev) => ({
+      ...prev,
+      [user.id]: value,
+    }));
+  };
+
+  const handleSavePhone = async (user) => {
+    const draft = getPhoneDraft(user).trim();
+
+    setSavingPhoneId(user.id);
+
+    try {
+      await User.update(user.id, { phone: draft });
+      await loadUsers();
+    } catch (error) {
+      console.error("Error updating phone:", error);
+      alert("Failed to update phone number: " + (error.message || "Unknown error"));
+    } finally {
+      setSavingPhoneId(null);
+    }
+  };
+
+
+  /* ==========================================================
+     DELETE USER PERMANENTLY
+  ========================================================== */
+
+  const handleDeleteUser = (user) => {
+    if (user.user_type === "admin") {
+      alert("Admin accounts cannot be deleted from this screen.");
+      return;
+    }
+
+    setPendingChange({
+      action: "delete",
+      user,
+    });
+  };
+
+
+  /* ==========================================================
      CONFIRM CHANGE
   ========================================================== */
 
@@ -575,6 +631,15 @@ export default function AdminTutorManagement() {
       }
 
 
+      /* ======================================================
+         PERMANENT DELETE
+      ======================================================= */
+
+      if (action === "delete") {
+        await User.delete(user.id);
+      }
+
+
       await loadUsers();
 
       setPendingChange(null);
@@ -633,6 +698,11 @@ export default function AdminTutorManagement() {
 
       return "Change User Type?";
 
+    }
+
+
+    if (pendingChange.action === "delete") {
+      return "Delete This Account Permanently?";
     }
 
 
@@ -696,6 +766,20 @@ export default function AdminTutorManagement() {
         </>
       );
 
+    }
+
+
+    if (pendingChange.action === "delete") {
+      return (
+        <span className="text-red-700">
+          You are about to <strong>permanently delete</strong> the account for{" "}
+          <strong>{user.full_name || user.email}</strong>. This removes the user record itself and
+          cannot be undone. Their historical ACAD records (past classes, enrollments, etc.) that
+          reference this user by ID will be left in place but will no longer resolve to a real
+          account. If you just want to deactivate them, use the Account Status dropdown instead of
+          deleting.
+        </span>
+      );
     }
 
 
@@ -1219,6 +1303,36 @@ export default function AdminTutorManagement() {
                             </p>
 
 
+                            <div className="
+                              flex
+                              items-center
+                              gap-2
+                              mt-1
+                            ">
+
+                              <Input
+                                value={getPhoneDraft(user)}
+                                onChange={(e) =>
+                                  handlePhoneDraftChange(user, e.target.value)
+                                }
+                                placeholder="WhatsApp number (e.g. 919790818436)"
+                                className="h-8 text-sm w-full md:w-56"
+                              />
+
+                              {getPhoneDraft(user) !== (user.phone || "") && (
+                                <Button
+                                  size="sm"
+                                  className="h-8 bg-blue-600 hover:bg-blue-700 shrink-0"
+                                  disabled={savingPhoneId === user.id}
+                                  onClick={() => handleSavePhone(user)}
+                                >
+                                  {savingPhoneId === user.id ? "Saving…" : "Save"}
+                                </Button>
+                              )}
+
+                            </div>
+
+
                             <p className="
                               text-xs
                               text-slate-400
@@ -1449,6 +1563,33 @@ export default function AdminTutorManagement() {
 
                           )}
 
+
+                          {/* DELETE PERMANENTLY */}
+
+                          {!isAdmin && (
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="
+                                border-red-300
+                                text-red-600
+                                hover:bg-red-50
+                              "
+                              disabled={
+                                isUpdatingThisUser ||
+                                isUpdating
+                              }
+                              onClick={() =>
+                                handleDeleteUser(user)
+                              }
+                            >
+                              <UserX className="w-4 h-4 mr-1" />
+                              Delete
+                            </Button>
+
+                          )}
+
                         </div>
 
                       </div>
@@ -1558,7 +1699,9 @@ export default function AdminTutorManagement() {
                 text-white
                 ${
                   pendingChange?.newValue ===
-                  "deleted"
+                    "deleted" ||
+                  pendingChange?.action ===
+                    "delete"
                     ? "bg-red-600 hover:bg-red-700"
                     : "bg-blue-600 hover:bg-blue-700"
                 }
@@ -1567,6 +1710,9 @@ export default function AdminTutorManagement() {
 
               {isUpdating
                 ? "Updating..."
+                : pendingChange?.action ===
+                  "delete"
+                ? "Yes, Delete Permanently"
                 : pendingChange?.newValue ===
                   "deleted"
                 ? "Yes, Mark Deleted"

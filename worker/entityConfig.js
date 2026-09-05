@@ -138,7 +138,7 @@ export const ENTITY_CONFIG = {
   },
   User: {
     table: "users",
-    columns: ["email", "full_name", "phone", "user_type", "is_verified", "grade_class", "school_name", "syllabus", "subjects_interested", "location", "profile_image", "bio", "qualifications", "subjects_teaching", "experience_years", "hourly_rate", "rating", "total_students", "children_ids"],
+    columns: ["email", "full_name", "phone", "user_type", "account_status", "is_verified", "grade_class", "school_name", "syllabus", "subjects_interested", "location", "profile_image", "bio", "qualifications", "subjects_teaching", "experience_years", "hourly_rate", "rating", "total_students", "children_ids"],
     arrayFields: ["subjects_interested", "qualifications", "subjects_teaching", "children_ids"],
     boolFields: ["is_verified"],
   },
