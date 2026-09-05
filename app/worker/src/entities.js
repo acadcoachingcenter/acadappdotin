@@ -68,8 +68,46 @@ export async function getEntity(env, name, id) {
   return row ? serializeRow(cfg, row) : null;
 }
 
+// Entities where a near-identical row created moments apart almost certainly
+// means the same client-side submit fired twice (double-click, retry, a
+// second tab), not two genuine separate records. Each entry lists the
+// columns that identify "the same submission" and the window to check.
+const DEDUPE_RULES = {
+  Inquiry: { matchOn: ["email", "phone"], windowMinutes: 5, dateColumn: "inquiry_date" },
+};
+
+async function findRecentDuplicate(env, name, cfg, data) {
+  const rule = DEDUPE_RULES[name];
+  if (!rule) return null;
+
+  const matchValues = rule.matchOn.map((col) => data[col]);
+  if (matchValues.some((v) => v === undefined || v === null || v === "")) {
+    return null; // Not enough info to safely dedupe; fall through to a normal insert.
+  }
+
+  const whereCols = rule.matchOn.map((col) => `${col} = ?`).join(" AND ");
+  const row = await env.DB.prepare(
+    `SELECT * FROM ${cfg.table}
+     WHERE ${whereCols}
+       AND ${rule.dateColumn} >= datetime('now', '-${rule.windowMinutes} minutes')
+     ORDER BY ${rule.dateColumn} DESC
+     LIMIT 1`
+  ).bind(...matchValues).first();
+
+  return row ? serializeRow(cfg, row) : null;
+}
+
 export async function createEntity(env, name, data, userId) {
   const cfg = getEntityConfig(name);
+
+  // Idempotency guard: if the same person just submitted this a moment ago
+  // (e.g. a double-click on Register Interest slipped past the client-side
+  // lock), return the existing row instead of inserting a duplicate.
+  const existing = await findRecentDuplicate(env, name, cfg, data);
+  if (existing) {
+    return existing;
+  }
+
   const id = crypto.randomUUID();
   const fields = cfg.columns.filter((c) => data[c] !== undefined);
   const cols = ["id", "created_by", ...fields];

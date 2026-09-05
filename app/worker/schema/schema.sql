@@ -409,3 +409,21 @@ CREATE TABLE IF NOT EXISTS users (
   total_students REAL,
   children_ids TEXT
 );
+
+-- Entity: SubjectClassroom
+-- Permanent, subject-wise Google Meet links (one per subject, shared across
+-- grades 6-12 given current student volume). These are the manual fallback
+-- classroom links tutors/students use if the Calendar -> WhatsApp automatic
+-- notification for a specific class ever fails to deliver a link in time.
+CREATE TABLE IF NOT EXISTS subject_classrooms (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  subject TEXT,
+  meet_link TEXT,
+  grade_range TEXT,
+  display_order REAL,
+  is_active INTEGER
+);
+

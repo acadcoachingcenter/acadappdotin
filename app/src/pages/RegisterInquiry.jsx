@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { apiClient } from "@/api/apiClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,11 @@ export default function RegisterInquiry() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+  // Synchronous lock. State (isSubmitting) only blocks the button after a
+  // re-render, so a fast double-click/double-tap can still fire handleSubmit
+  // twice before that render happens, creating duplicate Inquiry rows. A ref
+  // updates instantly, so the second call is rejected immediately.
+  const submitLockRef = useRef(false);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -69,11 +74,16 @@ export default function RegisterInquiry() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
+    if (submitLockRef.current) {
+      return; // A submission is already in flight; ignore the repeat click.
+    }
+
     if (!validateForm()) {
       return;
     }
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     setError('');
 
@@ -158,6 +168,7 @@ ACAD Team
       setError(`Submission failed. Please contact us directly at +91 9790818436 or acadcoachingcenter@gmail.com`);
     } finally {
       setIsSubmitting(false);
+      submitLockRef.current = false;
     }
   };
 

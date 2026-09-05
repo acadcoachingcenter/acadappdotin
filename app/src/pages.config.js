@@ -49,6 +49,7 @@
  */
 import AcademicEssentials from './pages/AcademicEssentials';
 import AdminCourseManagement from './pages/AdminCourseManagement';
+import AdminClassroomLinks from './pages/AdminClassroomLinks';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminEnrollmentManagement from './pages/AdminEnrollmentManagement';
 import AdminEventManagement from './pages/AdminEventManagement';
@@ -75,7 +76,6 @@ import ParentDashboard from './pages/ParentDashboard';
 import PostTuitionRequest from './pages/PostTuitionRequest';
 import Profile from './pages/Profile';
 import RegisterInquiry from './pages/RegisterInquiry';
-import ScheduleClass from './pages/ScheduleClass';
 import Settings from './pages/Settings';
 import StudentDashboard from './pages/StudentDashboard';
 import SupportUs from './pages/SupportUs';
@@ -87,6 +87,7 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "AcademicEssentials": AcademicEssentials,
     "AdminCourseManagement": AdminCourseManagement,
+    "AdminClassroomLinks": AdminClassroomLinks,
     "AdminDashboard": AdminDashboard,
     "AdminEnrollmentManagement": AdminEnrollmentManagement,
     "AdminEventManagement": AdminEventManagement,
@@ -113,7 +114,6 @@ export const PAGES = {
     "PostTuitionRequest": PostTuitionRequest,
     "Profile": Profile,
     "RegisterInquiry": RegisterInquiry,
-    "ScheduleClass": ScheduleClass,
     "Settings": Settings,
     "StudentDashboard": StudentDashboard,
     "SupportUs": SupportUs,

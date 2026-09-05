@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Users, IndianRupee, PlusCircle, RefreshCw, Settings, CalendarDays, MapPin, Mail, Phone, Download } from "lucide-react";
+import PermanentClassrooms from "@/components/classroom/PermanentClassrooms";
 
 export default function TutorDashboard() {
   const [user, setUser] = useState(null);
@@ -101,7 +102,9 @@ export default function TutorDashboard() {
       <h1 className="text-3xl font-bold text-slate-900">
         Welcome, {user?.full_name || user?.email || 'Tutor'}!
       </h1>
-      
+
+      <PermanentClassrooms />
+
       <div className="grid md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

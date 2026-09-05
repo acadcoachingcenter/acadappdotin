@@ -143,28 +143,6 @@ export default function AdminDashboard() {
 
         <div className="flex items-center gap-3">
 
-          <Button
-            asChild
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <Link
-              to={createPageUrl(
-                "AdminCourseManagement"
-              )}
-            >
-              <FolderKanban className="w-4 h-4 mr-2" />
-              Manage Courses
-            </Link>
-          </Button>
-
-          <Button
-            onClick={() => setShowEnrollModal(true)}
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Enroll Student
-          </Button>
-
           <div className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium">
             <Shield className="w-4 h-4 mr-1 inline" />
             ADMIN
@@ -323,6 +301,7 @@ export default function AdminDashboard() {
               )}
               className="bg-lime-600 text-secondary-foreground px-4 py-2 text-sm font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-secondary/80 h-10"
             >
+              <FolderKanban className="w-4 h-4" />
               Manage Courses
             </Link>
           </Button>

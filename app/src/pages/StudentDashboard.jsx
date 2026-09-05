@@ -19,8 +19,11 @@ import {
   User as UserIcon,
   ChevronUp,
   PlayCircle,
+  Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import EnrollmentRequestModal from "../components/student/EnrollmentRequestModal";
+import PermanentClassrooms from "@/components/classroom/PermanentClassrooms";
 
 export default function StudentDashboard() {
   const { user, isLoadingAuth } = useAuth();
@@ -234,6 +237,38 @@ export default function StudentDashboard() {
       <h1 className="text-3xl font-bold text-slate-900">
         Welcome, {user.full_name || "Student"}!
       </h1>
+
+      {/* EMERGENCY / TUTOR-ABSENT FALLBACK */}
+      <Card className="border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50">
+        <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Sparkles className="w-6 h-6 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-slate-900">
+                Tutor unavailable, or class link not working?
+              </p>
+              <p className="text-sm text-slate-600 mt-0.5">
+                Don't wait — jump into ACAD's Smart Classroom and keep learning right away.
+              </p>
+            </div>
+          </div>
+          <Button
+            asChild
+            className="bg-amber-600 hover:bg-amber-700 whitespace-nowrap"
+          >
+            <a
+              href="https://smart-tutor.acadapp.in/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open Smart Classroom
+              <ExternalLink className="w-4 h-4 ml-2" />
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <PermanentClassrooms />
 
       {/* Dashboard statistics */}
       <div className="grid md:grid-cols-4 gap-6">

@@ -86,6 +86,7 @@ const ENTITY_NAMES = [
   "StudentProgress",
   "StudentSubmission",
   "StudyMaterial",
+  "SubjectClassroom",
   "Submission",
   "Topic",
   "TuitionRequest",
@@ -304,42 +305,6 @@ const auth = {
           target
         )}`;
     },
-
-
-  /*
-   * Google Calendar authorization.
-   *
-   * This is deliberately separate from
-   * normal login.
-   *
-   * It requests the Calendar permission and
-   * asks Google for offline access.
-   */
-  connectGoogleCalendar:
-    (
-      returnUrl
-    ) => {
-
-      const target =
-        returnUrl ||
-        window.location.href;
-
-      window.location.href =
-        `${API_BASE}/api/auth/google/start?calendar=1&redirect=${encodeURIComponent(
-          target
-        )}`;
-    },
-
-
-  /*
-   * Check whether the current user has
-   * connected Google Calendar.
-   */
-  calendarStatus:
-    () =>
-      apiFetch(
-        "/api/auth/calendar/status"
-      ),
 
 };
 

@@ -48,6 +48,7 @@ import {
   ChevronRight,
   Video,
   MonitorPlay,
+  Sparkles,
 } from "lucide-react";
 
 
@@ -242,6 +243,13 @@ export default function Layout({ children, currentPageName }) {
       title: "ACAD TOOLS",
       isHeader: true,
     },
+{
+  title: "ACAD Smart Classroom",
+  url: "https://smart-tutor.acadapp.in/",
+  icon: Sparkles,
+  external: true,
+},
+
 {
   title: "ACAD Classroom",
   url: "https://classroom.acadapp.in/",
@@ -584,6 +592,15 @@ export default function Layout({ children, currentPageName }) {
               "AdminCourseManagement"
             ),
           icon: FolderKanban,
+        },
+
+        {
+          title: "Classroom Links",
+          url:
+            createPageUrl(
+              "AdminClassroomLinks"
+            ),
+          icon: Video,
         },
 
         {

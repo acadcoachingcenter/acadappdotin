@@ -61,6 +61,15 @@ export const ENTITY_CONFIG = {
     arrayFields: ["attendees", "materials"],
     boolFields: [],
   },
+  // Permanent, subject-wise Google Meet links (one per subject, covering
+  // grades 6-12). Manual fallback classrooms tutors/students use if the
+  // Calendar -> WhatsApp automatic notification for a class ever fails.
+  SubjectClassroom: {
+    table: "subject_classrooms",
+    columns: ["subject", "meet_link", "grade_range", "display_order", "is_active"],
+    arrayFields: [],
+    boolFields: ["is_active"],
+  },
   MockTest: {
     table: "mock_tests",
     columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions"],
