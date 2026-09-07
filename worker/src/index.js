@@ -852,4 +852,37 @@ app.get(
 );
 
 
+/*
+ * ---------- Global error handler ----------
+ *
+ * Without this, ANY unhandled exception in ANY route above (a D1 error,
+ * an auth-token verification failure, a bad JSON body, anything) falls
+ * through to Hono's default error response, which is not JSON. The
+ * frontend's apiFetch() then fails to parse res.json(), falls back to
+ * res.statusText -- which is always empty on Cloudflare Workers because
+ * HTTP/2 responses carry no status-text reason phrase -- and every real
+ * error collapses into the generic "Unknown error" popup.
+ *
+ * This handler guarantees every failure comes back as JSON with a real
+ * message, so the frontend (and we, when debugging) can actually see
+ * what broke.
+ */
+app.onError((err, c) => {
+
+  console.error(
+    "Unhandled error:",
+    err
+  );
+
+  return c.json(
+    {
+      error:
+        err?.message ||
+        "Internal server error",
+    },
+    500
+  );
+});
+
+
 export default app;
