@@ -23,6 +23,7 @@ const SUBJECTS = [
   "Maths",
   "Social Science",
   "Hindi",
+  "Accountancy",
 ];
 
 const emptyForm = {
