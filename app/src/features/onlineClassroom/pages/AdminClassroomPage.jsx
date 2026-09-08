@@ -74,6 +74,7 @@ function iso(date, time) {
 // addDays(date, 0) for the very first occurrence of a repeat series. Doing
 // the math in UTC-with-no-offset instead means there's no IST/UTC boundary
 // to cross in the first place, so it can't be shifted by this class of bug.
+// to automatically trigger classes schedule
 function addDays(dateStr, days) {
   const [year, month, day] = dateStr.split("-").map(Number);
   const d = new Date(Date.UTC(year, month - 1, day + days));
