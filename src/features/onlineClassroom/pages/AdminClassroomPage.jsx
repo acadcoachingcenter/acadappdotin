@@ -1,16 +1,15 @@
-
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video } from "lucide-react";
 import {
   createClass,
   decodeClassMeta,
   deleteClass,
-  FIXED_MEET_URL,
   listAcadUsers,
+  listActiveEnrolledStudents,
   listClassesForUser,
   syncClassToCalendar,
   updateClass,
-} from "../../../lib/classroomApi";
+} from "@/lib/classroomApi";
 
 const INDIA_TIMEZONE = "Asia/Kolkata";
 const INDIA_OFFSET = "+05:30";
@@ -33,6 +32,7 @@ const SUBJECTS = [
   "Tamil",
   "Hindi",
   "Computer Science",
+  "Accountancy"
 ];
 
 function todayIST() {
@@ -65,6 +65,24 @@ function iso(date, time) {
   return `${date}T${time}:00${INDIA_OFFSET}`;
 }
 
+// Pure calendar-day arithmetic on the Y/M/D components, done entirely inside
+// a fixed UTC representation with zero timezone offset ever attached. This is
+// the fix for a real bug: the previous version anchored to midnight IST
+// (`T00:00:00+05:30`) and then called .toISOString(), which always converts
+// to UTC first — and midnight IST is 18:30 the *previous* day in UTC. That
+// silently returned one day earlier than intended for every call, including
+// addDays(date, 0) for the very first occurrence of a repeat series. Doing
+// the math in UTC-with-no-offset instead means there's no IST/UTC boundary
+// to cross in the first place, so it can't be shifted by this class of bug.
+function addDays(dateStr, days) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day + days));
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
 function emptyForm() {
   const date = todayIST();
   return {
@@ -76,17 +94,15 @@ function emptyForm() {
     timeSlot: "morning",
     tutorId: "",
     studentIds: [],
+    repeatWeeks: 1,
   };
 }
 
 function classToForm(c) {
   const meta = decodeClassMeta(c);
   const slot =
-    TIME_SLOTS.find(
-      (s) =>
-        s.startTime === c.schedule?.startTime &&
-        s.endTime === c.schedule?.endTime
-    ) || TIME_SLOTS[0];
+    TIME_SLOTS.find((s) => s.startTime === c.schedule?.startTime && s.endTime === c.schedule?.endTime) ||
+    TIME_SLOTS[0];
 
   return {
     grade: String(meta.grade || 9),
@@ -110,7 +126,9 @@ export default function AdminClassroomPage({ user }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [syncingId, setSyncingId] = useState(null);
+  const [syncingAll, setSyncingAll] = useState(false);
   const [message, setMessage] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
 
   async function refresh() {
     setLoading(true);
@@ -118,7 +136,7 @@ export default function AdminClassroomPage({ user }) {
       const [classRows, tutorRows, studentRows] = await Promise.all([
         listClassesForUser(user),
         listAcadUsers("tutor"),
-        listAcadUsers("student"),
+        listActiveEnrolledStudents(),
       ]);
       setClasses(classRows);
       setTutors(tutorRows);
@@ -142,9 +160,7 @@ export default function AdminClassroomPage({ user }) {
       if (out[d]) out[d].push(c);
     }
     Object.values(out).forEach((items) =>
-      items.sort((a, b) =>
-        String(a.schedule?.startTime).localeCompare(String(b.schedule?.startTime))
-      )
+      items.sort((a, b) => String(a.schedule?.startTime).localeCompare(String(b.schedule?.startTime)))
     );
     return out;
   }, [classes]);
@@ -198,47 +214,70 @@ export default function AdminClassroomPage({ user }) {
     }
 
     const tutor = tutors.find((t) => t.id === form.tutorId);
-    const selectedStudents = students.filter((s) =>
-      form.studentIds.includes(s.id)
-    );
-    const slot =
-      TIME_SLOTS.find((s) => s.id === form.timeSlot) || TIME_SLOTS[0];
+    const selectedStudents = students.filter((s) => form.studentIds.includes(s.id));
+    const slot = TIME_SLOTS.find((s) => s.id === form.timeSlot) || TIME_SLOTS[0];
+    const weeks = editingId ? 1 : Math.max(1, Number(form.repeatWeeks) || 1);
 
-    const classData = {
-      grade: Number(form.grade),
-      subject: day === "Friday" ? "Revision / Weekly Test" : form.subject,
-      batchName: form.batchName || slot.name,
-      tutor: {
-        id: tutor.id,
-        name: tutor.full_name || tutor.email,
-        email: tutor.email,
-      },
-      students: selectedStudents.map((s) => ({
-        id: s.id,
-        name: s.full_name || s.email,
-        email: s.email,
-      })),
-      durationMinutes: 60,
-      schedule: {
-        day,
-        date: form.date,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        startTimeISO: iso(form.date, slot.startTime),
-      },
-      status: "scheduled",
-    };
+    function buildClassData(dateStr, dayStr) {
+      return {
+        grade: Number(form.grade),
+        subject: dayStr === "Friday" ? "Revision / Weekly Test" : form.subject,
+        batchName: form.batchName || slot.name,
+        tutor: {
+          id: tutor.id,
+          name: tutor.full_name || tutor.email,
+          email: tutor.email,
+          // Sourced directly from the tutor's own ACAD profile - no manual
+          // entry. Tutors without a phone on file simply won't get a
+          // WhatsApp message; they still get the Calendar invite + email.
+          phone: tutor.phone || "",
+        },
+        students: selectedStudents.map((s) => ({
+          id: s.id,
+          name: s.full_name || s.email,
+          email: s.email,
+          phone: s.phone || "",
+        })),
+        durationMinutes: 60,
+        schedule: {
+          day: dayStr,
+          date: dateStr,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          startTimeISO: iso(dateStr, slot.startTime),
+        },
+        status: "scheduled",
+      };
+    }
 
     setSaving(true);
     setMessage("");
 
     try {
       if (editingId) {
-        await updateClass(editingId, classData);
+        await updateClass(editingId, buildClassData(form.date, day));
         setMessage("Class updated. Click Google Calendar to send/update the invitations.");
-      } else {
-        await createClass(classData);
+      } else if (weeks === 1) {
+        await createClass(buildClassData(form.date, day));
         setMessage("Class created. Click Google Calendar to notify the tutor and students.");
+      } else {
+        // Weekly repeat: create N independent class rows, 7 days apart.
+        // Each is its own row with its own Meet link once synced - editing
+        // or deleting one later never affects the others in the series.
+        let created = 0;
+        for (let i = 0; i < weeks; i++) {
+          const occurrenceDate = addDays(form.date, i * 7);
+          const occurrenceDay = dayFromDate(occurrenceDate);
+          // Skip if a repeat lands on a weekend (shouldn't normally happen
+          // since the base date is validated as a weekday, but guards
+          // against odd date-math edge cases).
+          if (occurrenceDay === "Saturday" || occurrenceDay === "Sunday") continue;
+          await createClass(buildClassData(occurrenceDate, occurrenceDay));
+          created++;
+        }
+        setMessage(
+          `Created ${created} classes, one every week starting ${form.date}. Click Google Calendar on each to notify the tutor and students for that date.`
+        );
       }
       closeEditor();
       await refresh();
@@ -259,7 +298,7 @@ export default function AdminClassroomPage({ user }) {
         `Google Calendar invitation sent to the tutor and ${Math.max(
           0,
           (c.attendees?.length || 1) - 1
-        )} student(s).`
+        )} student(s). WhatsApp sent to ${result.whatsapp?.attempted ?? 0} recipient(s).`
       );
       if (result.calendarLink) {
         window.open(result.calendarLink, "_blank", "noopener,noreferrer");
@@ -273,6 +312,39 @@ export default function AdminClassroomPage({ user }) {
     }
   }
 
+  async function handleSyncAll() {
+    const unsynced = classes.filter((c) => !c.meetUrl);
+    if (!unsynced.length) {
+      setMessage("Every class already has a Meet link.");
+      return;
+    }
+
+    setSyncingAll(true);
+    setMessage("");
+    let succeeded = 0;
+    let failed = 0;
+
+    // Sequential, not parallel - avoids hammering the Calendar/WhatsApp
+    // Worker with a burst of simultaneous requests when syncing a whole
+    // repeat series (e.g. 12 weekly classes) at once.
+    for (const c of unsynced) {
+      try {
+        await syncClassToCalendar(c);
+        succeeded++;
+      } catch (err) {
+        console.error(`Sync failed for class ${c.id}:`, err);
+        failed++;
+      }
+    }
+
+    setMessage(
+      `Synced ${succeeded} class${succeeded === 1 ? "" : "es"}.` +
+        (failed ? ` ${failed} failed - check those individually.` : "")
+    );
+    await refresh();
+    setSyncingAll(false);
+  }
+
   async function handleDelete(c) {
     if (!window.confirm(`Delete ${c.subject} - ${c.batchName}?`)) return;
     try {
@@ -284,30 +356,39 @@ export default function AdminClassroomPage({ user }) {
     }
   }
 
-  if (loading) return <p className="text-slate">Loading ACAD classroom data…</p>;
+  if (loading) return <p className="text-slate-600">Loading ACAD classroom data…</p>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-2xl font-semibold text-ink">
-            Live Class Timetable
-          </h2>
-          <p className="mt-1 text-sm text-slate">
-            Tutor and student details are taken directly from ACAD login/user records.
+          <h2 className="text-2xl font-semibold text-slate-900">Live Class Timetable</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Tutor and student details, including WhatsApp numbers, are taken directly from ACAD
+            login/user records.
           </p>
         </div>
-        <button
-          onClick={openNew}
-          className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          <Plus size={17} />
-          Schedule Class
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSyncAll}
+            disabled={syncingAll}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-900 disabled:opacity-50"
+          >
+            <CalendarDays size={17} />
+            {syncingAll ? "Syncing…" : "Sync All Unsynced"}
+          </button>
+          <button
+            onClick={openNew}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            <Plus size={17} />
+            Schedule Class
+          </button>
+        </div>
       </div>
 
       {message && (
-        <div className="rounded-lg border border-chalkline bg-white px-4 py-3 text-sm text-ink">
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900">
           {message}
         </div>
       )}
@@ -316,48 +397,51 @@ export default function AdminClassroomPage({ user }) {
         <div className="flex items-start gap-2">
           <Video size={18} className="mt-0.5 shrink-0" />
           <div>
-            <strong>Default Google Meet</strong>
-            <div className="mt-1 font-mono text-xs">{FIXED_MEET_URL}</div>
+            <strong>Per-class Google Meet</strong>
             <p className="mt-1">
-              This link is fixed for the ACAD class. The admin/host starts the meeting;
-              tutors and students join through the same link.
+              Each class gets its own Google Meet link, generated automatically the first time you
+              click "Google Calendar" below. Tutor and students are notified by email and WhatsApp
+              (when a phone number is on file).
             </p>
           </div>
         </div>
       </div>
 
       {showEditor && (
-        <form onSubmit={handleSave} className="rounded-xl border border-chalkline bg-white p-5">
+        <form onSubmit={handleSave} className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h3 className="font-display text-lg font-semibold text-ink">
+              <h3 className="text-lg font-semibold text-slate-900">
                 {editingId ? "Edit Live Class" : "Schedule Live Class"}
               </h3>
-              <p className="text-sm text-slate">
-                Selecting a tutor/student uses the ACAD account records; no manual email entry is required.
+              <p className="text-sm text-slate-600">
+                Selecting a tutor/student uses the ACAD account records; no manual email or phone
+                entry is required.
               </p>
             </div>
-            <button type="button" onClick={closeEditor} className="rounded-lg p-2 text-slate hover:bg-slate-100">
+            <button type="button" onClick={closeEditor} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
               <X size={18} />
             </button>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-ink">Grade</span>
+              <span className="mb-1 block font-medium text-slate-900">Grade</span>
               <select
                 value={form.grade}
                 onChange={(e) => setForm({ ...form, grade: e.target.value })}
-                className="w-full rounded-lg border border-chalkline px-3 py-2"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
               >
                 {[9, 10, 11, 12].map((g) => (
-                  <option key={g} value={g}>Grade {g}</option>
+                  <option key={g} value={g}>
+                    Grade {g}
+                  </option>
                 ))}
               </select>
             </label>
 
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-ink">Date</span>
+              <span className="mb-1 block font-medium text-slate-900">Date</span>
               <input
                 type="date"
                 value={form.date}
@@ -365,33 +449,29 @@ export default function AdminClassroomPage({ user }) {
                   const date = e.target.value;
                   setForm({ ...form, date, day: dayFromDate(date) });
                 }}
-                className="w-full rounded-lg border border-chalkline px-3 py-2"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
                 required
               />
             </label>
 
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-ink">Day</span>
+              <span className="mb-1 block font-medium text-slate-900">Day</span>
               <input
                 value={form.day}
                 readOnly
-                className="w-full rounded-lg border border-chalkline bg-slate-50 px-3 py-2"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2"
               />
             </label>
 
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-ink">Time</span>
+              <span className="mb-1 block font-medium text-slate-900">Time</span>
               <select
                 value={form.timeSlot}
                 onChange={(e) => {
                   const slot = TIME_SLOTS.find((s) => s.id === e.target.value);
-                  setForm({
-                    ...form,
-                    timeSlot: e.target.value,
-                    batchName: slot?.name || form.batchName,
-                  });
+                  setForm({ ...form, timeSlot: e.target.value, batchName: slot?.name || form.batchName });
                 }}
-                className="w-full rounded-lg border border-chalkline px-3 py-2"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
               >
                 {TIME_SLOTS.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -402,82 +482,122 @@ export default function AdminClassroomPage({ user }) {
             </label>
 
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-ink">Subject</span>
+              <span className="mb-1 block font-medium text-slate-900">Subject</span>
               <select
                 value={form.day === "Friday" ? "Revision / Weekly Test" : form.subject}
                 disabled={form.day === "Friday"}
                 onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                className="w-full rounded-lg border border-chalkline px-3 py-2 disabled:bg-slate-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
               >
-                {SUBJECTS.map((s) => <option key={s}>{s}</option>)}
+                {SUBJECTS.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
                 <option>Revision / Weekly Test</option>
               </select>
             </label>
 
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-ink">Batch</span>
+              <span className="mb-1 block font-medium text-slate-900">Batch</span>
               <input
                 value={form.batchName}
                 onChange={(e) => setForm({ ...form, batchName: e.target.value })}
-                className="w-full rounded-lg border border-chalkline px-3 py-2"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
               />
             </label>
 
+            {!editingId && (
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-900">Repeat</span>
+                <select
+                  value={form.repeatWeeks}
+                  onChange={(e) => setForm({ ...form, repeatWeeks: Number(e.target.value) })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                >
+                  <option value={1}>Just this once</option>
+                  <option value={4}>Every week for 1 month (4 classes)</option>
+                  <option value={8}>Every week for 2 months (8 classes)</option>
+                  <option value={12}>Every week for 3 months (12 classes)</option>
+                </select>
+                <span className="mt-1 block text-xs text-slate-600">
+                  Creates one independent class per week, same day/time. Editing or deleting one
+                  later won't affect the others.
+                </span>
+              </label>
+            )}
+
             <label className="text-sm md:col-span-2 lg:col-span-3">
-              <span className="mb-1 block font-medium text-ink">Tutor</span>
+              <span className="mb-1 block font-medium text-slate-900">Tutor</span>
               <select
                 value={form.tutorId}
                 onChange={(e) => setForm({ ...form, tutorId: e.target.value })}
-                className="w-full rounded-lg border border-chalkline px-3 py-2"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
                 required
               >
                 <option value="">Select an ACAD tutor</option>
                 {tutors.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.full_name || t.email} — {t.email}
+                    {t.phone ? ` — ${t.phone}` : " — no phone on file"}
                   </option>
                 ))}
               </select>
             </label>
 
             <div className="md:col-span-2 lg:col-span-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-ink">
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-900">
                 <Users size={16} />
                 Students
+                <span className="font-normal text-slate-500">
+                  (from active enrollments — {students.length} total)
+                </span>
               </div>
-              <div className="max-h-56 overflow-auto rounded-lg border border-chalkline p-3">
+              <input
+                type="text"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder="Search by name or email…"
+                className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <div className="max-h-56 overflow-auto rounded-lg border border-slate-300 p-3">
                 {students.length === 0 ? (
-                  <p className="text-sm text-slate">No ACAD student accounts found.</p>
+                  <p className="text-sm text-slate-600">No active enrolled students found.</p>
                 ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {students.map((s) => (
-                      <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-slate-50">
-                        <input
-                          type="checkbox"
-                          checked={form.studentIds.includes(s.id)}
-                          onChange={() => toggleStudent(s.id)}
-                        />
-                        <span className="text-sm">
-                          <strong>{s.full_name || s.email}</strong>
-                          <span className="ml-1 text-slate">({s.email})</span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
+                  (() => {
+                    const q = studentSearch.trim().toLowerCase();
+                    const filtered = q
+                      ? students.filter(
+                          (s) =>
+                            s.full_name.toLowerCase().includes(q) ||
+                            s.email.toLowerCase().includes(q)
+                        )
+                      : students;
+
+                    if (filtered.length === 0) {
+                      return <p className="text-sm text-slate-600">No students match "{studentSearch}".</p>;
+                    }
+
+                    return (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {filtered.map((s) => (
+                          <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={form.studentIds.includes(s.id)}
+                              onChange={() => toggleStudent(s.id)}
+                            />
+                            <span className="text-sm">
+                              <strong>{s.full_name}</strong>
+                              <span className="ml-1 text-slate-500">
+                                ({s.email || "no email"}{s.phone ? `, ${s.phone}` : ", no phone on file"})
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })()
                 )}
               </div>
-            </div>
-
-            <div className="md:col-span-2 lg:col-span-3">
-              <label className="text-sm font-medium text-ink">Google Meet link</label>
-              <input
-                value={FIXED_MEET_URL}
-                readOnly
-                className="mt-1 w-full rounded-lg border border-chalkline bg-slate-50 px-3 py-2 font-mono text-sm"
-              />
-              <p className="mt-1 text-xs text-slate">
-                Automatically filled. It is intentionally not editable.
-              </p>
             </div>
           </div>
 
@@ -485,7 +605,7 @@ export default function AdminClassroomPage({ user }) {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
               <Save size={16} />
               {saving ? "Saving…" : editingId ? "Save Changes" : "Schedule Class"}
@@ -493,7 +613,7 @@ export default function AdminClassroomPage({ user }) {
             <button
               type="button"
               onClick={closeEditor}
-              className="rounded-lg border border-chalkline px-4 py-2 text-sm"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
             >
               Cancel
             </button>
@@ -503,40 +623,40 @@ export default function AdminClassroomPage({ user }) {
 
       <div className="space-y-5">
         {DAYS.map((day) => (
-          <section key={day} className="overflow-hidden rounded-xl border border-chalkline bg-white">
-            <div className="flex items-center gap-2 border-b border-chalkline px-5 py-3">
-              <CalendarDays size={17} className="text-slate" />
-              <h3 className="font-display font-semibold text-ink">{day}</h3>
+          <section key={day} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-3">
+              <CalendarDays size={17} className="text-slate-500" />
+              <h3 className="font-semibold text-slate-900">{day}</h3>
             </div>
 
             {grouped[day]?.length ? (
-              <div className="divide-y divide-chalkline">
+              <div className="divide-y divide-slate-200">
                 {grouped[day].map((c) => (
                   <div key={c.id} className="p-4">
                     <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
                       <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-slate">Time</p>
-                          <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-ink">
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Time</p>
+                          <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-slate-900">
                             <Clock size={14} />
                             {formatTime(c.schedule?.startTime)} - {formatTime(c.schedule?.endTime)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-slate">Grade</p>
-                          <p className="mt-1 text-sm font-semibold text-ink">Grade {c.grade}</p>
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Grade</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">Grade {c.grade}</p>
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-slate">Subject</p>
-                          <p className="mt-1 text-sm font-semibold text-ink">{c.subject}</p>
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Subject</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">{c.subject}</p>
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-slate">Batch</p>
-                          <p className="mt-1 text-sm text-ink">{c.batchName}</p>
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Batch</p>
+                          <p className="mt-1 text-sm text-slate-900">{c.batchName}</p>
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-slate">Tutor / Students</p>
-                          <p className="mt-1 text-sm text-ink">
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Tutor / Students</p>
+                          <p className="mt-1 text-sm text-slate-900">
                             {c.tutorName} / {c.studentIds?.length || 0}
                           </p>
                         </div>
@@ -545,14 +665,14 @@ export default function AdminClassroomPage({ user }) {
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => openEdit(c)}
-                          className="rounded-lg border border-chalkline px-3 py-2 text-xs font-semibold"
+                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleCalendar(c)}
                           disabled={syncingId === c.id}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
                         >
                           <CalendarDays size={14} />
                           {syncingId === c.id ? "Sending…" : "Google Calendar"}
@@ -567,14 +687,17 @@ export default function AdminClassroomPage({ user }) {
                       </div>
                     </div>
 
-                    <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate">
-                      Meet: <span className="font-mono">{FIXED_MEET_URL}</span>
+                    <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      Meet:{" "}
+                      <span className="font-mono">
+                        {c.meetUrl || "Not generated yet — click Google Calendar"}
+                      </span>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="px-5 py-6 text-sm text-slate">No classes scheduled.</div>
+              <div className="px-5 py-6 text-sm text-slate-600">No classes scheduled.</div>
             )}
           </section>
         ))}
