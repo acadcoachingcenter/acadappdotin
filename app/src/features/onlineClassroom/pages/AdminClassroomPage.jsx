@@ -65,10 +65,22 @@ function iso(date, time) {
   return `${date}T${time}:00${INDIA_OFFSET}`;
 }
 
+// Pure calendar-day arithmetic on the Y/M/D components, done entirely inside
+// a fixed UTC representation with zero timezone offset ever attached. This is
+// the fix for a real bug: the previous version anchored to midnight IST
+// (`T00:00:00+05:30`) and then called .toISOString(), which always converts
+// to UTC first — and midnight IST is 18:30 the *previous* day in UTC. That
+// silently returned one day earlier than intended for every call, including
+// addDays(date, 0) for the very first occurrence of a repeat series. Doing
+// the math in UTC-with-no-offset instead means there's no IST/UTC boundary
+// to cross in the first place, so it can't be shifted by this class of bug.
 function addDays(dateStr, days) {
-  const d = new Date(`${dateStr}T00:00:00${INDIA_OFFSET}`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day + days));
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
 }
 
 function emptyForm() {
