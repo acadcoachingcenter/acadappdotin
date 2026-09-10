@@ -38,6 +38,15 @@ import {
   serveFile,
 } from "./upload.js";
 
+import {
+  createSession as createWhiteboardSession,
+  endSession as endWhiteboardSession,
+  appendDeltas as appendWhiteboardDeltas,
+  getDeltas as getWhiteboardDeltas,
+  saveSnapshot as saveWhiteboardSnapshot,
+  getSession as getWhiteboardSession,
+} from "./whiteboardRoutes.js";
+
 
 const app = new Hono();
 
@@ -783,6 +792,182 @@ app.get(
       c.env,
       c.req.param("key")
     )
+);
+
+
+/*
+ * ---------- Whiteboard ----------
+ *
+ * Session, delta, and snapshot endpoints backing the classroom's
+ * native Excalidraw-based whiteboard (Phase 1).
+ */
+
+
+/*
+ * Create a whiteboard session (tutor starts a class).
+ */
+app.post(
+  "/api/whiteboard/sessions",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return createWhiteboardSession(c);
+  }
+);
+
+
+/*
+ * End a whiteboard session.
+ */
+app.post(
+  "/api/whiteboard/:sessionId/end",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return endWhiteboardSession(c);
+  }
+);
+
+
+/*
+ * Append batched deltas to a whiteboard session.
+ */
+app.post(
+  "/api/whiteboard/:sessionId/deltas",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return appendWhiteboardDeltas(c);
+  }
+);
+
+
+/*
+ * Fetch deltas for replay/reload.
+ */
+app.get(
+  "/api/whiteboard/:sessionId/deltas",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return getWhiteboardDeltas(c);
+  }
+);
+
+
+/*
+ * Save a periodic snapshot/checkpoint.
+ */
+app.post(
+  "/api/whiteboard/:sessionId/snapshot",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return saveWhiteboardSnapshot(c);
+  }
+);
+
+
+/*
+ * Fetch session metadata + latest snapshot (reload/rejoin).
+ */
+app.get(
+  "/api/whiteboard/:sessionId",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return getWhiteboardSession(c);
+  }
 );
 
 
