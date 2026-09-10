@@ -10,7 +10,7 @@
     "db:init:local": "wrangler d1 execute acad-db --local --file=./schema/schema.sql"
   },
   "dependencies": {
-    "hono": "^4.6.0"
+    "hono": "^4.13.7"
   },
   "devDependencies": {
     "wrangler": "^4.114.0"
