@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, CalendarDays } from "lucide-react";
+import { ExternalLink, CalendarDays, LayoutGrid, List } from "lucide-react";
 import { classStatus, formatClassTime, listClassesForUser } from "@/lib/classroomApi";
+import WeeklyTimetable from "../components/WeeklyTimetable";
 
 export default function TutorClassroomPage({ user }) {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("list");
 
   useEffect(() => {
     listClassesForUser(user).then(setClasses).finally(() => setLoading(false));
@@ -14,10 +16,37 @@ export default function TutorClassroomPage({ user }) {
 
   return (
     <div className="space-y-4">
+      {classes.length > 0 && (
+        <div className="flex justify-end">
+          <div className="flex rounded-lg border border-slate-300 p-0.5">
+            <button
+              onClick={() => setView("list")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold ${
+                view === "list" ? "bg-slate-900 text-white" : "text-slate-600"
+              }`}
+            >
+              <List size={15} />
+              List
+            </button>
+            <button
+              onClick={() => setView("timetable")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold ${
+                view === "timetable" ? "bg-slate-900 text-white" : "text-slate-600"
+              }`}
+            >
+              <LayoutGrid size={15} />
+              Timetable
+            </button>
+          </div>
+        </div>
+      )}
+
       {classes.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
           No classes have been assigned to you yet.
         </div>
+      ) : view === "timetable" ? (
+        <WeeklyTimetable classes={classes} />
       ) : (
         classes.map((c) => {
           const status = classStatus(c);

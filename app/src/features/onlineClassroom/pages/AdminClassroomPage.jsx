@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video } from "lucide-react";
+import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List } from "lucide-react";
 import {
   createClass,
   decodeClassMeta,
@@ -10,17 +10,11 @@ import {
   syncClassToCalendar,
   updateClass,
 } from "@/lib/classroomApi";
+import { DAYS, TIME_SLOTS } from "../constants";
+import WeeklyTimetable from "../components/WeeklyTimetable";
 
 const INDIA_TIMEZONE = "Asia/Kolkata";
 const INDIA_OFFSET = "+05:30";
-
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-
-const TIME_SLOTS = [
-  { id: "morning", name: "Morning", startTime: "06:00", endTime: "07:00" },
-  { id: "evening-a", name: "Evening A", startTime: "18:00", endTime: "19:00" },
-  { id: "evening-b", name: "Evening B", startTime: "19:00", endTime: "20:00" },
-];
 
 const SUBJECTS = [
   "Mathematics",
@@ -65,22 +59,10 @@ function iso(date, time) {
   return `${date}T${time}:00${INDIA_OFFSET}`;
 }
 
-// Pure calendar-day arithmetic on the Y/M/D components, done entirely inside
-// a fixed UTC representation with zero timezone offset ever attached. This is
-// the fix for a real bug: the previous version anchored to midnight IST
-// (`T00:00:00+05:30`) and then called .toISOString(), which always converts
-// to UTC first — and midnight IST is 18:30 the *previous* day in UTC. That
-// silently returned one day earlier than intended for every call, including
-// addDays(date, 0) for the very first occurrence of a repeat series. Doing
-// the math in UTC-with-no-offset instead means there's no IST/UTC boundary
-// to cross in the first place, so it can't be shifted by this class of bug.
 function addDays(dateStr, days) {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const d = new Date(Date.UTC(year, month - 1, day + days));
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+  const d = new Date(`${dateStr}T00:00:00${INDIA_OFFSET}`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 function emptyForm() {
@@ -129,6 +111,7 @@ export default function AdminClassroomPage({ user }) {
   const [syncingAll, setSyncingAll] = useState(false);
   const [message, setMessage] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
+  const [view, setView] = useState("list");
 
   async function refresh() {
     setLoading(true);
@@ -368,7 +351,27 @@ export default function AdminClassroomPage({ user }) {
             login/user records.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <div className="flex rounded-lg border border-slate-300 p-0.5">
+            <button
+              onClick={() => setView("list")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold ${
+                view === "list" ? "bg-slate-900 text-white" : "text-slate-600"
+              }`}
+            >
+              <List size={15} />
+              List
+            </button>
+            <button
+              onClick={() => setView("timetable")}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold ${
+                view === "timetable" ? "bg-slate-900 text-white" : "text-slate-600"
+              }`}
+            >
+              <LayoutGrid size={15} />
+              Timetable
+            </button>
+          </div>
           <button
             onClick={handleSyncAll}
             disabled={syncingAll}
@@ -621,87 +624,91 @@ export default function AdminClassroomPage({ user }) {
         </form>
       )}
 
-      <div className="space-y-5">
-        {DAYS.map((day) => (
-          <section key={day} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-3">
-              <CalendarDays size={17} className="text-slate-500" />
-              <h3 className="font-semibold text-slate-900">{day}</h3>
-            </div>
-
-            {grouped[day]?.length ? (
-              <div className="divide-y divide-slate-200">
-                {grouped[day].map((c) => (
-                  <div key={c.id} className="p-4">
-                    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                      <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-slate-500">Time</p>
-                          <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-slate-900">
-                            <Clock size={14} />
-                            {formatTime(c.schedule?.startTime)} - {formatTime(c.schedule?.endTime)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-slate-500">Grade</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-900">Grade {c.grade}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-slate-500">Subject</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-900">{c.subject}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-slate-500">Batch</p>
-                          <p className="mt-1 text-sm text-slate-900">{c.batchName}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs uppercase tracking-wide text-slate-500">Tutor / Students</p>
-                          <p className="mt-1 text-sm text-slate-900">
-                            {c.tutorName} / {c.studentIds?.length || 0}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => openEdit(c)}
-                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleCalendar(c)}
-                          disabled={syncingId === c.id}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                        >
-                          <CalendarDays size={14} />
-                          {syncingId === c.id ? "Sending…" : "Google Calendar"}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(c)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600"
-                        >
-                          <Trash2 size={14} />
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      Meet:{" "}
-                      <span className="font-mono">
-                        {c.meetUrl || "Not generated yet — click Google Calendar"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+      {view === "timetable" ? (
+        <WeeklyTimetable classes={classes} onClassClick={openEdit} />
+      ) : (
+        <div className="space-y-5">
+          {DAYS.map((day) => (
+            <section key={day} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-3">
+                <CalendarDays size={17} className="text-slate-500" />
+                <h3 className="font-semibold text-slate-900">{day}</h3>
               </div>
-            ) : (
-              <div className="px-5 py-6 text-sm text-slate-600">No classes scheduled.</div>
-            )}
-          </section>
-        ))}
-      </div>
+
+              {grouped[day]?.length ? (
+                <div className="divide-y divide-slate-200">
+                  {grouped[day].map((c) => (
+                    <div key={c.id} className="p-4">
+                      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                        <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">Time</p>
+                            <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-slate-900">
+                              <Clock size={14} />
+                              {formatTime(c.schedule?.startTime)} - {formatTime(c.schedule?.endTime)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">Grade</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-900">Grade {c.grade}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">Subject</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-900">{c.subject}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">Batch</p>
+                            <p className="mt-1 text-sm text-slate-900">{c.batchName}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">Tutor / Students</p>
+                            <p className="mt-1 text-sm text-slate-900">
+                              {c.tutorName} / {c.studentIds?.length || 0}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openEdit(c)}
+                            className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleCalendar(c)}
+                            disabled={syncingId === c.id}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                          >
+                            <CalendarDays size={14} />
+                            {syncingId === c.id ? "Sending…" : "Google Calendar"}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(c)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        Meet:{" "}
+                        <span className="font-mono">
+                          {c.meetUrl || "Not generated yet — click Google Calendar"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-5 py-6 text-sm text-slate-600">No classes scheduled.</div>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
