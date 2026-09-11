@@ -251,13 +251,6 @@ export default function Layout({ children, currentPageName }) {
 },
 
 {
-  title: "ACAD Classroom",
-  url: "https://classroom.acadapp.in/",
-  icon: Video,
-  external: true,
-},
-
-{
   title: "Revision",
   url: "https://revision.acadapp.in",
   icon: ClipboardList,
