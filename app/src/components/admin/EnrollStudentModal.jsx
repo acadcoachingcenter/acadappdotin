@@ -12,12 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Mail, Phone } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { UserPlus, Mail, Phone, PackagePlus } from "lucide-react";
 
 export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuccess, initialData }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [courses, setCourses] = useState([]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [isCombo, setIsCombo] = useState(false);
+  const [comboCourseIds, setComboCourseIds] = useState([]);
   const [formData, setFormData] = useState({
     studentEmail: "",
     studentWhatsApp: "",
@@ -33,6 +36,8 @@ export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuc
   React.useEffect(() => {
     if (open) {
       loadCourses();
+      setIsCombo(false);
+      setComboCourseIds([]);
       if (initialData) {
         setFormData({
           studentEmail: initialData.studentEmail || "",
@@ -58,6 +63,18 @@ export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuc
     }
     setIsLoadingCourses(false);
   };
+
+  function toggleComboCourse(courseId) {
+    setComboCourseIds((prev) =>
+      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+    );
+  }
+
+  const comboSelectedCourses = courses.filter((c) => comboCourseIds.includes(c.id));
+  const comboListedTotal = comboSelectedCourses.reduce(
+    (sum, c) => sum + (parseFloat(c.price) || 0),
+    0
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -86,46 +103,97 @@ export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuc
       return;
     }
 
-    if (!formData.courseId) {
+    if (isCombo) {
+      if (comboCourseIds.length < 2) {
+        setError("Combo enrollment needs at least 2 courses selected");
+        return;
+      }
+    } else if (!formData.courseId) {
       setError("Please select a course");
       return;
     }
 
+    const totalAmountPaid = parseFloat(formData.amountPaid) || 0;
+
     setIsSubmitting(true);
 
     try {
-      const selectedCourse = courses.find(c => c.id === formData.courseId);
-      
       // Use email if provided, otherwise use WhatsApp as identifier
-      const contactEmail = formData.studentEmail ? 
-        formData.studentEmail.toLowerCase().trim() : 
+      const contactEmail = formData.studentEmail ?
+        formData.studentEmail.toLowerCase().trim() :
         `${formData.studentWhatsApp.replace(/\D/g, '')}@whatsapp.temp`;
-      
-      // Create enrollment directly (admin approval)
-      const enrollmentData = {
-        student_email: contactEmail,
-        student_whatsapp: formData.studentWhatsApp.trim(),
-        student_name: formData.studentName.trim(),
-        course_id: formData.courseId,
-        course_name: selectedCourse.title,
-        tutor_id: selectedCourse.tutor_id,
-        tutor_name: formData.tutorName.trim() || selectedCourse.tutor_name,
-        amount_paid: parseFloat(formData.amountPaid) || 0,
-        payment_transaction_id: formData.transactionId || "",
-        status: "active", // Admin can directly activate
-        enrollment_date: new Date().toISOString(),
-        remarks: formData.remarks || "Enrolled by admin"
-      };
 
-      await apiClient.entities.Enrollment.create(enrollmentData);
+      if (isCombo) {
+        // Combo: one negotiated total across several courses. Each course
+        // still needs its own Enrollment row (course access, per-course
+        // enrolled_students counts, etc. all key off individual rows), so
+        // the total is split across rows proportional to each course's
+        // listed price -- this keeps the Admin Dashboard's revenue sum
+        // (which just adds up amount_paid across all rows) correct without
+        // any special-casing there.
+        //
+        // All rows share the same payment_transaction_id so they can be
+        // traced back to the same combo deal later.
+        const comboId = formData.transactionId.trim() || `combo-${Date.now()}`;
 
-      // Update course enrollment count
-      await apiClient.entities.Course.update(formData.courseId, {
-        enrolled_students: (selectedCourse.enrolled_students || 0) + 1
-      });
-      
+        for (const course of comboSelectedCourses) {
+          const share =
+            comboListedTotal > 0
+              ? (parseFloat(course.price) || 0) / comboListedTotal * totalAmountPaid
+              : totalAmountPaid / comboSelectedCourses.length;
+
+          const enrollmentData = {
+            student_email: contactEmail,
+            student_whatsapp: formData.studentWhatsApp.trim(),
+            student_name: formData.studentName.trim(),
+            course_id: course.id,
+            course_name: course.title,
+            tutor_id: course.tutor_id,
+            tutor_name: formData.tutorName.trim() || course.tutor_name,
+            amount_paid: Math.round(share * 100) / 100,
+            payment_transaction_id: comboId,
+            status: "active",
+            enrollment_date: new Date().toISOString(),
+            remarks:
+              (formData.remarks ? `${formData.remarks} — ` : "") +
+              `Combo deal (${comboSelectedCourses.length} courses, ₹${totalAmountPaid} total vs ₹${comboListedTotal} listed). This course's share: ₹${Math.round(share * 100) / 100}.`,
+          };
+
+          await apiClient.entities.Enrollment.create(enrollmentData);
+
+          await apiClient.entities.Course.update(course.id, {
+            enrolled_students: (course.enrolled_students || 0) + 1,
+          });
+        }
+      } else {
+        const selectedCourse = courses.find(c => c.id === formData.courseId);
+
+        // Create enrollment directly (admin approval)
+        const enrollmentData = {
+          student_email: contactEmail,
+          student_whatsapp: formData.studentWhatsApp.trim(),
+          student_name: formData.studentName.trim(),
+          course_id: formData.courseId,
+          course_name: selectedCourse.title,
+          tutor_id: selectedCourse.tutor_id,
+          tutor_name: formData.tutorName.trim() || selectedCourse.tutor_name,
+          amount_paid: totalAmountPaid,
+          payment_transaction_id: formData.transactionId || "",
+          status: "active", // Admin can directly activate
+          enrollment_date: new Date().toISOString(),
+          remarks: formData.remarks || "Enrolled by admin"
+        };
+
+        await apiClient.entities.Enrollment.create(enrollmentData);
+
+        // Update course enrollment count
+        await apiClient.entities.Course.update(formData.courseId, {
+          enrolled_students: (selectedCourse.enrolled_students || 0) + 1
+        });
+      }
+
       alert("✅ Student enrolled successfully!");
-      
+
       // Reset form
       setFormData({
         studentEmail: "",
@@ -137,7 +205,9 @@ export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuc
         transactionId: "",
         remarks: ""
       });
-      
+      setIsCombo(false);
+      setComboCourseIds([]);
+
       if (onEnrollmentSuccess) {
         onEnrollmentSuccess();
       }
@@ -173,6 +243,57 @@ export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuc
             </div>
           )}
 
+          <div className="flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
+            <Checkbox
+              id="isCombo"
+              checked={isCombo}
+              onCheckedChange={(checked) => {
+                setIsCombo(!!checked);
+                setError("");
+              }}
+            />
+            <Label htmlFor="isCombo" className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-purple-900">
+              <PackagePlus className="h-4 w-4" />
+              Combo enrollment (multiple courses, one negotiated total)
+            </Label>
+          </div>
+
+          {isCombo ? (
+            <div className="space-y-2">
+              <Label>Select Courses (2 or more) *</Label>
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                {isLoadingCourses ? (
+                  <p className="p-2 text-sm text-slate-500">Loading courses...</p>
+                ) : courses.length === 0 ? (
+                  <p className="p-2 text-sm text-slate-500">No published courses available</p>
+                ) : (
+                  courses.map((course) => (
+                    <label
+                      key={course.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-slate-50"
+                    >
+                      <Checkbox
+                        checked={comboCourseIds.includes(course.id)}
+                        onCheckedChange={() => toggleComboCourse(course.id)}
+                      />
+                      <span className="text-sm">
+                        {course.title} — <span className="text-slate-500">₹{course.price}</span>
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+              {comboSelectedCourses.length > 0 && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                  <strong>{comboSelectedCourses.length} course(s) selected</strong> — listed total: ₹{comboListedTotal}
+                  <p className="mt-1 text-xs text-blue-700">
+                    The negotiated total you enter below will be split across these courses proportional
+                    to their listed price, so each course's share is recorded automatically.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="space-y-2">
             <Label htmlFor="courseId">Select Course *</Label>
             <Select
@@ -214,6 +335,7 @@ export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuc
               </div>
             )}
           </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="studentName">Student Name *</Label>
@@ -282,7 +404,9 @@ export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuc
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="amountPaid">Amount Paid (₹)</Label>
+            <Label htmlFor="amountPaid">
+              {isCombo ? "Total Amount Paid — combined for all selected courses (₹)" : "Amount Paid (₹)"}
+            </Label>
             <Input
               id="amountPaid"
               type="number"
@@ -291,6 +415,15 @@ export default function EnrollStudentModal({ open, onOpenChange, onEnrollmentSuc
               placeholder="0"
               min="0"
             />
+            {isCombo && comboListedTotal > 0 && formData.amountPaid && (
+              <p className="text-xs text-slate-500">
+                {parseFloat(formData.amountPaid) < comboListedTotal
+                  ? `₹${(comboListedTotal - parseFloat(formData.amountPaid)).toFixed(2)} discount vs listed total.`
+                  : parseFloat(formData.amountPaid) > comboListedTotal
+                  ? `₹${(parseFloat(formData.amountPaid) - comboListedTotal).toFixed(2)} above listed total.`
+                  : "Matches listed total exactly."}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
