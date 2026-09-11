@@ -31,6 +31,12 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: [],
   },
+  TutorPayment: {
+    table: "tutor_payments",
+    columns: ["tutor_id", "tutor_name", "amount", "payment_date", "payment_method", "notes"],
+    arrayFields: [],
+    boolFields: [],
+  },
   Event: {
     table: "events",
     columns: ["title", "description", "event_date", "category", "images", "is_published", "view_count"],

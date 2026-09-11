@@ -20,6 +20,7 @@ import {
   ClipboardList
 } from "lucide-react";
 import EnrollStudentModal from "../components/admin/EnrollStudentModal";
+import RecordTutorPaymentModal from "../components/admin/RecordTutorPaymentModal";
 
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
@@ -27,15 +28,17 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalTutors: 0,
-    totalRevenue: 0,
+    grossRevenue: 0,
+    tutorPayouts: 0,
+    netRevenue: 0,
     newInquiries: 0
   });
 
   const [isLoading, setIsLoading] = useState(true);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  useEffect(() => {
-    const loadData = async () => {
+  const loadData = async () => {
       try {
         // Get currently authenticated user
         const userData = await apiClient.auth.me();
@@ -83,6 +86,41 @@ export default function AdminDashboard() {
           );
         }
 
+        // Revenue: sum of amount_paid across all enrollments that aren't
+        // rejected. "Gross" is fees collected from students; "payouts" is
+        // what's actually been paid out to tutors so far; "net" is the
+        // difference -- what ACAD has actually kept.
+        let grossRevenue = 0;
+        let tutorPayouts = 0;
+
+        try {
+          const enrollmentResponse = await apiClient.entities.Enrollment.list();
+          const enrollments = Array.isArray(enrollmentResponse)
+            ? enrollmentResponse
+            : Array.isArray(enrollmentResponse?.data)
+              ? enrollmentResponse.data
+              : [];
+
+          grossRevenue = enrollments
+            .filter((e) => e.status !== "rejected")
+            .reduce((sum, e) => sum + (parseFloat(e.amount_paid) || 0), 0);
+        } catch (revenueError) {
+          console.error("Error fetching enrollments for revenue:", revenueError);
+        }
+
+        try {
+          const paymentResponse = await apiClient.entities.TutorPayment.list();
+          const payments = Array.isArray(paymentResponse)
+            ? paymentResponse
+            : Array.isArray(paymentResponse?.data)
+              ? paymentResponse.data
+              : [];
+
+          tutorPayouts = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+        } catch (payoutError) {
+          console.error("Error fetching tutor payments:", payoutError);
+        }
+
         // Calculate dashboard statistics
         const totalUsers = allUsers.length;
 
@@ -98,9 +136,9 @@ export default function AdminDashboard() {
           totalUsers,
           totalTutors,
 
-          // Revenue API / payment calculation
-          // can be connected separately.
-          totalRevenue: 0,
+          grossRevenue,
+          tutorPayouts,
+          netRevenue: grossRevenue - tutorPayouts,
 
           newInquiries: newInquiryCount
         });
@@ -113,8 +151,9 @@ export default function AdminDashboard() {
       } finally {
         setIsLoading(false);
       }
-    };
+  };
 
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -142,6 +181,15 @@ export default function AdminDashboard() {
         </h1>
 
         <div className="flex items-center gap-3">
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowPaymentModal(true)}
+          >
+            <IndianRupee className="w-4 h-4 mr-1" />
+            Record Tutor Payment
+          </Button>
 
           <div className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium">
             <Shield className="w-4 h-4 mr-1 inline" />
@@ -192,12 +240,12 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* REVENUE */}
+        {/* NET REVENUE */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 
             <CardTitle className="text-sm font-medium">
-              Revenue
+              Net Revenue
             </CardTitle>
 
             <IndianRupee className="h-5 w-5 text-purple-600" />
@@ -206,7 +254,11 @@ export default function AdminDashboard() {
 
           <CardContent>
             <div className="text-2xl font-bold">
-              ₹{stats.totalRevenue}
+              ₹{stats.netRevenue.toLocaleString("en-IN")}
+            </div>
+            <div className="mt-1 text-xs text-slate-500 space-y-0.5">
+              <div>Fees collected: ₹{stats.grossRevenue.toLocaleString("en-IN")}</div>
+              <div>Paid to tutors: ₹{stats.tutorPayouts.toLocaleString("en-IN")}</div>
             </div>
           </CardContent>
         </Card>
@@ -317,6 +369,15 @@ export default function AdminDashboard() {
           onEnrollmentSuccess={
             handleEnrollmentSuccess
           }
+        />
+      )}
+
+      {/* RECORD TUTOR PAYMENT MODAL */}
+      {showPaymentModal && (
+        <RecordTutorPaymentModal
+          open={showPaymentModal}
+          onOpenChange={setShowPaymentModal}
+          onPaymentRecorded={loadData}
         />
       )}
 
