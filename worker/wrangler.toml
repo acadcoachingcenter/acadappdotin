@@ -2,6 +2,13 @@ name = "acad-api"
 main = "src/index.js"
 compatibility_date = "2026-07-01"
 
+workers_dev = true
+preview_urls = true
+
+routes = [
+  { pattern = "api.acadapp.in", custom_domain = true }
+]
+
 # ---- D1 database (free tier: 5GB storage, 5M rows read/day) ----
 # Create with: wrangler d1 create acad-db
 # Then paste the returned database_id below.
