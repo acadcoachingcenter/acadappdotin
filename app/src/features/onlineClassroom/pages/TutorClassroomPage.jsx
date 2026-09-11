@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink, CalendarDays, LayoutGrid, List } from "lucide-react";
 import { classStatus, formatClassTime, listClassesForUser } from "@/lib/classroomApi";
 import WeeklyTimetable from "../components/WeeklyTimetable";
+import WhiteboardButton from "../components/WhiteboardButton";
 
 export default function TutorClassroomPage({ user }) {
   const [classes, setClasses] = useState([]);
@@ -71,21 +72,37 @@ export default function TutorClassroomPage({ user }) {
                   </p>
                 </div>
 
-                {c.meetUrl ? (
-                  <a
-                    href={c.meetUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
-                  >
-                    <ExternalLink size={16} />
-                    Join Google Meet
-                  </a>
-                ) : (
-                  <span className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-500">
-                    Link not generated yet
-                  </span>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {c.meetUrl ? (
+                    <a
+                      href={c.meetUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+                    >
+                      <ExternalLink size={16} />
+                      Join Google Meet
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-500">
+                      Link not generated yet
+                    </span>
+                  )}
+                  <WhiteboardButton
+                    classItem={c}
+                    role="tutor"
+                    size="sm"
+                    onMetaChange={(meta) =>
+                      setClasses((prev) =>
+                        prev.map((cls) =>
+                          cls.id === c.id
+                            ? { ...cls, whiteboard_data: JSON.stringify(meta) }
+                            : cls
+                        )
+                      )
+                    }
+                  />
+                </div>
               </div>
 
               {!c.meetUrl && (

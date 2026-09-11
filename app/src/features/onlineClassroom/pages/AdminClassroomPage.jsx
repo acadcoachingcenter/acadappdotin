@@ -12,6 +12,7 @@ import {
 } from "@/lib/classroomApi";
 import { DAYS, TIME_SLOTS } from "../constants";
 import WeeklyTimetable from "../components/WeeklyTimetable";
+import WhiteboardButton from "../components/WhiteboardButton";
 
 const INDIA_TIMEZONE = "Asia/Kolkata";
 const INDIA_OFFSET = "+05:30";
@@ -690,6 +691,7 @@ export default function AdminClassroomPage({ user }) {
                             <Trash2 size={14} />
                             Delete
                           </button>
+                          <WhiteboardButton classItem={c} role="admin" size="sm" />
                         </div>
                       </div>
 
