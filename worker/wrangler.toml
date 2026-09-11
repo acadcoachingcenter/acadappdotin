@@ -24,6 +24,12 @@ COOKIE_DOMAIN = ".acadapp.in"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 EMAIL_FROM = "ACAD Team <notifications@acadapp.in>"
 
+# ---- Cron Trigger: weekly NEET/JEE mock test generation ----
+# Runs every Wednesday 10:00 AM IST. Cron times are UTC; IST is UTC+5:30,
+# so 10:00 IST = 04:30 UTC. Day-of-week 3 = Wednesday (0 = Sunday).
+[triggers]
+crons = ["30 4 * * 3"]
+
 # ---- Secrets (do NOT put these here -- set via `wrangler secret put <NAME>`) ----
 # SESSION_SECRET       - long random string, e.g. `openssl rand -hex 32`
 # GOOGLE_CLIENT_ID      - from Google Cloud Console OAuth client

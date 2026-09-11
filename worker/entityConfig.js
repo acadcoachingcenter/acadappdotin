@@ -72,7 +72,7 @@ export const ENTITY_CONFIG = {
   },
   MockTest: {
     table: "mock_tests",
-    columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions"],
+    columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions", "exam_type", "status", "week_of"],
     arrayFields: [],
     boolFields: [],
   },

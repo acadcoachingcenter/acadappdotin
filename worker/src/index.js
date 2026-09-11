@@ -52,6 +52,8 @@ import {
   getEngagementSummary,
 } from "./engagementRoutes.js";
 
+import { runWeeklyMockTestJob } from "./weeklyMockTest.js";
+
 
 const app = new Hono();
 
@@ -1139,4 +1141,17 @@ app.onError((err, c) => {
 });
 
 
-export default app;
+export default {
+  fetch: app.fetch,
+
+  /*
+   * Cloudflare Cron Trigger entry point (see wrangler.toml [triggers]).
+   * Runs the weekly NEET/JEE mock test generation + notification job.
+   * ctx.waitUntil keeps the Worker alive until the async job finishes,
+   * since cron invocations don't wait on a returned Response the way a
+   * normal fetch request does.
+   */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runWeeklyMockTestJob(env));
+  },
+};

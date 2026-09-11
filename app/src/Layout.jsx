@@ -49,6 +49,7 @@ import {
   Video,
   MonitorPlay,
   Sparkles,
+  FileQuestion,
 } from "lucide-react";
 
 
@@ -735,6 +736,15 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
+          title: "Weekly Mock Test",
+          url:
+            createPageUrl(
+              "WeeklyMockTest"
+            ),
+          icon: FileQuestion,
+        },
+
+        {
           title: "Online Books",
           url:
             createPageUrl(
@@ -1003,6 +1013,15 @@ export default function Layout({ children, currentPageName }) {
               "OnlineClassroom"
             ),
           icon: Video,
+        },
+
+        {
+          title: "Weekly Mock Test",
+          url:
+            createPageUrl(
+              "WeeklyMockTest"
+            ),
+          icon: FileQuestion,
         },
 
         {
