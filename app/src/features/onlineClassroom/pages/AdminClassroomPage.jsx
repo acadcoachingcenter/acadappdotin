@@ -61,9 +61,18 @@ function iso(date, time) {
 }
 
 function addDays(dateStr, days) {
-  const d = new Date(`${dateStr}T00:00:00${INDIA_OFFSET}`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  // Pure calendar-date math in UTC on both ends -- no timezone offset is
+  // ever introduced, so there's nothing that can shift the date by a day.
+  // (Previously this parsed "T00:00:00+05:30" then called .toISOString(),
+  // which converts back to UTC and silently lands on the PREVIOUS calendar
+  // day -- e.g. a Friday class would be stored and grouped as Thursday.)
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const utcDate = new Date(Date.UTC(y, m - 1, d));
+  utcDate.setUTCDate(utcDate.getUTCDate() + days);
+  const yyyy = utcDate.getUTCFullYear();
+  const mm = String(utcDate.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(utcDate.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function emptyForm() {
