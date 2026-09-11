@@ -91,6 +91,7 @@ export default function TutorClassroomPage({ user }) {
                   <WhiteboardButton
                     classItem={c}
                     role="tutor"
+                    user={user}
                     size="sm"
                     onMetaChange={(meta) =>
                       setClasses((prev) =>

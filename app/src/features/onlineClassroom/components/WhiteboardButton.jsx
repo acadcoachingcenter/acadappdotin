@@ -12,7 +12,7 @@ function parseStatus(classItem) {
 }
 
 // role: "tutor" | "student" | "admin"
-export default function WhiteboardButton({ classItem, role, size = "lg", onMetaChange }) {
+export default function WhiteboardButton({ classItem, role, user, size = "lg", onMetaChange }) {
   const [open, setOpen] = useState(false);
   const status = parseStatus(classItem);
   const sizing = size === "lg" ? "px-5 py-3 text-base" : "px-3.5 py-2 text-sm";
@@ -42,6 +42,7 @@ export default function WhiteboardButton({ classItem, role, size = "lg", onMetaC
         <ClassroomWhiteboard
           classItem={classItem}
           role={role}
+          user={user}
           onClose={() => setOpen(false)}
           onMetaChange={onMetaChange}
         />

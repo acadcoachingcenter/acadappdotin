@@ -691,7 +691,7 @@ export default function AdminClassroomPage({ user }) {
                             <Trash2 size={14} />
                             Delete
                           </button>
-                          <WhiteboardButton classItem={c} role="admin" size="sm" />
+                          <WhiteboardButton classItem={c} role="admin" user={user} size="sm" />
                         </div>
                       </div>
 

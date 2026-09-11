@@ -47,6 +47,11 @@ import {
   getSession as getWhiteboardSession,
 } from "./whiteboardRoutes.js";
 
+import {
+  logEngagementEvent,
+  getEngagementSummary,
+} from "./engagementRoutes.js";
+
 
 const app = new Hono();
 
@@ -967,6 +972,70 @@ app.get(
     }
 
     return getWhiteboardSession(c);
+  }
+);
+
+
+/*
+ * ---------- Engagement (Phase 2) ----------
+ *
+ * Rule-based idle-event logging from student/viewer clients, plus a
+ * Groq-summarized flag feed for the tutor's sidebar.
+ */
+
+
+/*
+ * Log a single idle/rejoin event from a viewer's client.
+ */
+app.post(
+  "/api/whiteboard/:sessionId/engagement",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return logEngagementEvent(c);
+  }
+);
+
+
+/*
+ * Fetch recent engagement events + Groq-summarized flags for the tutor sidebar.
+ */
+app.get(
+  "/api/whiteboard/:sessionId/engagement/summary",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return getEngagementSummary(c);
   }
 );
 

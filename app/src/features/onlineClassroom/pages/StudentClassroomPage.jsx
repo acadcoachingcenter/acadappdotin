@@ -94,7 +94,7 @@ export default function StudentClassroomPage({ user }) {
                       Link not sent yet
                     </span>
                   )}
-                  <WhiteboardButton classItem={c} role="student" size="sm" />
+                  <WhiteboardButton classItem={c} role="student" user={user} size="sm" />
                 </div>
               </div>
             </div>

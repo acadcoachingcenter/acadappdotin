@@ -55,3 +55,18 @@ export function saveWhiteboardSnapshot(sessionId, sceneJson) {
 export function getWhiteboardSession(sessionId) {
   return whiteboardFetch(`/api/whiteboard/${sessionId}`);
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 — engagement monitoring
+// ---------------------------------------------------------------------------
+
+export function logEngagementEvent(sessionId, event) {
+  return whiteboardFetch(`/api/whiteboard/${sessionId}/engagement`, {
+    method: "POST",
+    body: JSON.stringify(event),
+  });
+}
+
+export function getEngagementSummary(sessionId) {
+  return whiteboardFetch(`/api/whiteboard/${sessionId}/engagement/summary`);
+}

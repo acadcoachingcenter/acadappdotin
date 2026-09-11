@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Excalidraw } from "@excalidraw/excalidraw";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Sparkles, Users } from "lucide-react";
 import "@excalidraw/excalidraw/index.css";
 import {
   createWhiteboardSession,
   endWhiteboardSession,
+  getEngagementSummary,
   getWhiteboardSession,
+  logEngagementEvent,
   saveWhiteboardSnapshot,
 } from "@/lib/whiteboardApi";
 import { apiClient } from "@/api/apiClient";
@@ -16,6 +18,12 @@ import { apiClient } from "@/api/apiClient";
 // live. Real-time multi-user sync (Yjs/Durable Objects) is a fast-follow.
 const AUTOSAVE_DEBOUNCE_MS = 4000;
 const VIEWER_POLL_MS = 8000;
+
+// Phase 2 — engagement monitoring tuning. A viewer (student) is flagged
+// idle after this many seconds with no pointer/touch/keyboard activity on
+// the whiteboard. The tutor's sidebar re-checks for new flags on this cadence.
+const IDLE_THRESHOLD_MS = 45000;
+const ENGAGEMENT_POLL_MS = 20000;
 
 function parseWhiteboardData(classItem) {
   try {
@@ -36,7 +44,125 @@ async function persistWhiteboardMeta(classId, meta) {
   });
 }
 
-export default function ClassroomWhiteboard({ classItem, role, onClose, onMetaChange }) {
+// Tracks pointer/touch/keyboard activity on the whiteboard for a single
+// viewer and reports idle_start/idle_end events to the Worker. Rule-based —
+// no ML, just a debounce timer. Returns nothing; fires side effects only.
+function useIdleTracking({ enabled, sessionId, user }) {
+  const idleTimerRef = useRef(null);
+  const idleSinceRef = useRef(null);
+  const isIdleRef = useRef(false);
+
+  useEffect(() => {
+    if (!enabled || !sessionId || !user?.id) return;
+
+    function reportIdleStart() {
+      if (isIdleRef.current) return;
+      isIdleRef.current = true;
+      idleSinceRef.current = Date.now();
+      logEngagementEvent(sessionId, {
+        student_id: user.id,
+        student_name: user.full_name || user.email || "Student",
+        event_type: "idle_start",
+      }).catch(() => {});
+    }
+
+    function reportIdleEnd() {
+      if (!isIdleRef.current) return;
+      isIdleRef.current = false;
+      const idleSeconds = Math.round((Date.now() - (idleSinceRef.current || Date.now())) / 1000);
+      logEngagementEvent(sessionId, {
+        student_id: user.id,
+        student_name: user.full_name || user.email || "Student",
+        event_type: "idle_end",
+        idle_seconds: idleSeconds,
+      }).catch(() => {});
+    }
+
+    function resetTimer() {
+      reportIdleEnd();
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(reportIdleStart, IDLE_THRESHOLD_MS);
+    }
+
+    const events = ["pointermove", "pointerdown", "touchstart", "keydown", "wheel"];
+    events.forEach((evt) => window.addEventListener(evt, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, resetTimer));
+      clearTimeout(idleTimerRef.current);
+      // Flush a final idle_end if the viewer navigates away mid-idle, so the
+      // session's numbers aren't left hanging.
+      reportIdleEnd();
+    };
+  }, [enabled, sessionId, user?.id, user?.full_name, user?.email]);
+}
+
+// Tutor-only sidebar: polls the Groq-summarized engagement feed and shows
+// quiet flags without interrupting the whiteboard itself.
+function EngagementSidebar({ sessionId }) {
+  const [summary, setSummary] = useState(null);
+  const [eventCount, setEventCount] = useState(0);
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const data = await getEngagementSummary(sessionId);
+        if (cancelled) return;
+        setSummary(data.summary);
+        setEventCount(data.event_count || 0);
+      } catch {
+        // transient — next poll retries
+      }
+    }
+
+    poll();
+    const interval = setInterval(poll, ENGAGEMENT_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [sessionId]);
+
+  if (!summary) return null;
+
+  return (
+    <div className="absolute bottom-4 right-4 z-10 w-72">
+      {open ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-900">
+              <Sparkles size={14} className="text-amber-500" />
+              Engagement flags
+            </div>
+            <button
+              onClick={() => setOpen(false)}
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
+              Hide
+            </button>
+          </div>
+          <p className="text-xs leading-relaxed text-slate-600">{summary}</p>
+          <p className="mt-2 text-[10px] text-slate-400">{eventCount} event(s) this session</p>
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-lg"
+        >
+          <Users size={13} />
+          Flags
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function ClassroomWhiteboard({ classItem, role, user, onClose, onMetaChange }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sessionId, setSessionId] = useState(null);
@@ -47,6 +173,8 @@ export default function ClassroomWhiteboard({ classItem, role, onClose, onMetaCh
   const pollTimerRef = useRef(null);
 
   const isEditor = role === "tutor";
+
+  useIdleTracking({ enabled: role === "student", sessionId, user });
 
   useEffect(() => {
     let cancelled = false;
@@ -226,6 +354,10 @@ export default function ClassroomWhiteboard({ classItem, role, onClose, onMetaCh
             viewModeEnabled={!isEditor}
             onChange={handleChange}
           />
+        )}
+
+        {!loading && !error && isEditor && sessionId && (
+          <EngagementSidebar sessionId={sessionId} />
         )}
       </div>
     </div>
