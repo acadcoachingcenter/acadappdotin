@@ -91,6 +91,7 @@ const ENTITY_NAMES = [
   "Topic",
   "TuitionRequest",
   "TutorInterest",
+  "TutorPayment",
   "User",
 ];
 
