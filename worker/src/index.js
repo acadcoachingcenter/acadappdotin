@@ -1043,6 +1043,65 @@ app.get(
 
 
 /*
+ * Manually trigger the weekly mock test generation job -- admin only.
+ * Exists purely for testing the Phase 3 automation without waiting for the
+ * Wednesday 10 AM IST cron to fire. Safe to leave in place long-term
+ * (e.g. to force an extra test before an exam week), since it's gated to
+ * admin accounts only.
+ */
+app.post(
+  "/api/admin/run-weekly-mocktest",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+      const result =
+        await runWeeklyMockTestJob(
+          c.env
+        );
+      return c.json(result);
+    } catch (e) {
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        500
+      );
+    }
+  }
+);
+
+
+/*
  * ---------- Other named notification functions ----------
  *
  * These continue to use the existing
