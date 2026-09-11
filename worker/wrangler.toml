@@ -21,7 +21,7 @@ bucket_name = "acad-uploads"
 APP_URL = "https://acadapp.in"
 API_URL = "https://api.acadapp.in"
 COOKIE_DOMAIN = ".acadapp.in"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 EMAIL_FROM = "ACAD Team <notifications@acadapp.in>"
 
 # ---- Cron Trigger: weekly NEET/JEE mock test generation ----
