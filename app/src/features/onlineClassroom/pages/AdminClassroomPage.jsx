@@ -83,7 +83,8 @@ function emptyForm() {
     batchName: "Morning",
     date,
     day: dayFromDate(date),
-    timeSlot: "morning",
+    startTime: "06:00",
+    endTime: "07:00",
     tutorId: "",
     studentIds: [],
     repeatWeeks: 1,
@@ -92,17 +93,15 @@ function emptyForm() {
 
 function classToForm(c) {
   const meta = decodeClassMeta(c);
-  const slot =
-    TIME_SLOTS.find((s) => s.startTime === c.schedule?.startTime && s.endTime === c.schedule?.endTime) ||
-    TIME_SLOTS[0];
 
   return {
     grade: String(meta.grade || 9),
     subject: c.subject || "Mathematics",
-    batchName: meta.batchName || slot.name,
+    batchName: meta.batchName || "",
     date: c.schedule?.date || todayIST(),
     day: c.schedule?.day || dayFromDate(c.schedule?.date),
-    timeSlot: slot.id,
+    startTime: c.schedule?.startTime || "18:00",
+    endTime: c.schedule?.endTime || "19:00",
     tutorId: c.tutorId || "",
     studentIds: c.studentIds || [],
   };
@@ -208,14 +207,22 @@ export default function AdminClassroomPage({ user }) {
 
     const tutor = tutors.find((t) => t.id === form.tutorId);
     const selectedStudents = students.filter((s) => form.studentIds.includes(s.id));
-    const slot = TIME_SLOTS.find((s) => s.id === form.timeSlot) || TIME_SLOTS[0];
     const weeks = editingId ? 1 : Math.max(1, Number(form.repeatWeeks) || 1);
+
+    if (form.endTime <= form.startTime) {
+      setMessage("End time must be after start time.");
+      return;
+    }
+
+    const [startH, startM] = form.startTime.split(":").map(Number);
+    const [endH, endM] = form.endTime.split(":").map(Number);
+    const durationMinutes = endH * 60 + endM - (startH * 60 + startM);
 
     function buildClassData(dateStr, dayStr) {
       return {
         grade: Number(form.grade),
         subject: dayStr === "Friday" ? "Revision / Weekly Test" : form.subject,
-        batchName: form.batchName || slot.name,
+        batchName: form.batchName || "Class",
         tutor: {
           id: tutor.id,
           name: tutor.full_name || tutor.email,
@@ -231,13 +238,13 @@ export default function AdminClassroomPage({ user }) {
           email: s.email,
           phone: s.phone || "",
         })),
-        durationMinutes: 60,
+        durationMinutes,
         schedule: {
           day: dayStr,
           date: dateStr,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          startTimeISO: iso(dateStr, slot.startTime),
+          startTime: form.startTime,
+          endTime: form.endTime,
+          startTimeISO: iso(dateStr, form.startTime),
         },
         status: "scheduled",
       };
@@ -477,22 +484,52 @@ export default function AdminClassroomPage({ user }) {
             </label>
 
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-900">Time</span>
-              <select
-                value={form.timeSlot}
-                onChange={(e) => {
-                  const slot = TIME_SLOTS.find((s) => s.id === e.target.value);
-                  setForm({ ...form, timeSlot: e.target.value, batchName: slot?.name || form.batchName });
-                }}
+              <span className="mb-1 block font-medium text-slate-900">Start Time</span>
+              <input
+                type="time"
+                value={form.startTime}
+                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
-              >
-                {TIME_SLOTS.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} - {formatTime(s.startTime)} to {formatTime(s.endTime)}
-                  </option>
-                ))}
-              </select>
+                required
+              />
             </label>
+
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-900">End Time</span>
+              <input
+                type="time"
+                value={form.endTime}
+                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                required
+              />
+            </label>
+
+            <div className="text-sm md:col-span-2 lg:col-span-1">
+              <span className="mb-1 block font-medium text-slate-900">Quick Fill</span>
+              <div className="flex flex-wrap gap-1.5">
+                {TIME_SLOTS.map((slot) => (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        startTime: slot.startTime,
+                        endTime: slot.endTime,
+                        batchName: form.batchName || slot.name,
+                      })
+                    }
+                    className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    {slot.name}
+                  </button>
+                ))}
+              </div>
+              <span className="mt-1 block text-xs text-slate-600">
+                Or set any custom time above - not limited to these three.
+              </span>
+            </div>
 
             <label className="text-sm">
               <span className="mb-1 block font-medium text-slate-900">Subject</span>

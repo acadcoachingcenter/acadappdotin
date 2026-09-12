@@ -50,6 +50,8 @@ const GRADES = [
   "Graduate",
 ];
 
+const DESCRIPTION_MAX_LENGTH = 250;
+
 export default function CreateCourse() {
   const navigate = useNavigate();
 
@@ -88,6 +90,10 @@ export default function CreateCourse() {
   }, [user, isLoadingAuth, navigate]);
 
   const updateField = (field, value) => {
+    if (field === "description" && value.length > DESCRIPTION_MAX_LENGTH) {
+      value = value.slice(0, DESCRIPTION_MAX_LENGTH);
+    }
+
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -120,6 +126,13 @@ export default function CreateCourse() {
   "Please fill in all required fields: " +
     emptyFields.join(", ")
 );
+      return false;
+    }
+
+    if (formData.description.trim().length > DESCRIPTION_MAX_LENGTH) {
+      setError(
+        `Course description must be ${DESCRIPTION_MAX_LENGTH} characters or fewer.`
+      );
       return false;
     }
 
@@ -306,9 +319,21 @@ export default function CreateCourse() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">
-                Course Description *
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="description">
+                  Course Description *
+                </Label>
+
+                <span
+                  className={`text-xs ${
+                    formData.description.length >= DESCRIPTION_MAX_LENGTH
+                      ? "text-red-600"
+                      : "text-slate-400"
+                  }`}
+                >
+                  {formData.description.length}/{DESCRIPTION_MAX_LENGTH}
+                </span>
+              </div>
 
               <Textarea
                 id="description"
@@ -319,7 +344,8 @@ export default function CreateCourse() {
                     e.target.value
                   )
                 }
-                placeholder="Describe what students will learn in this course."
+                maxLength={DESCRIPTION_MAX_LENGTH}
+                placeholder="Briefly describe what students will learn (3-4 lines)."
                 className="h-24"
                 required
               />

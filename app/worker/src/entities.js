@@ -76,6 +76,31 @@ const DEDUPE_RULES = {
   Inquiry: { matchOn: ["email", "phone"], windowMinutes: 5, dateColumn: "inquiry_date" },
 };
 
+// Server-side field validation, enforced on create/update regardless of what
+// the client sends. Keeps rules like "description must be short" from being
+// bypassed by a direct API call. Add entries per entity/field as needed.
+const VALIDATION_RULES = {
+  Course: {
+    description: { maxLength: 250 },
+  },
+};
+
+function validateFields(name, data) {
+  const rules = VALIDATION_RULES[name];
+  if (!rules) return;
+
+  for (const [field, rule] of Object.entries(rules)) {
+    const value = data[field];
+    if (value == null) continue;
+
+    if (rule.maxLength != null && String(value).length > rule.maxLength) {
+      throw new Error(
+        `${field} must be ${rule.maxLength} characters or fewer (got ${String(value).length}).`
+      );
+    }
+  }
+}
+
 async function findRecentDuplicate(env, name, cfg, data) {
   const rule = DEDUPE_RULES[name];
   if (!rule) return null;
@@ -100,6 +125,8 @@ async function findRecentDuplicate(env, name, cfg, data) {
 export async function createEntity(env, name, data, userId) {
   const cfg = getEntityConfig(name);
 
+  validateFields(name, data);
+
   // Idempotency guard: if the same person just submitted this a moment ago
   // (e.g. a double-click on Register Interest slipped past the client-side
   // lock), return the existing row instead of inserting a duplicate.
@@ -121,6 +148,9 @@ export async function createEntity(env, name, data, userId) {
 
 export async function updateEntity(env, name, id, data) {
   const cfg = getEntityConfig(name);
+
+  validateFields(name, data);
+
   const fields = cfg.columns.filter((c) => data[c] !== undefined);
   if (fields.length === 0) return getEntity(env, name, id);
   const setClause = fields.map((f) => `${f} = ?`).join(", ") + ", updated_date = datetime('now')";
