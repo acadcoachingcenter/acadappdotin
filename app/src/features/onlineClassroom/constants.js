@@ -4,7 +4,7 @@
 // (used on the Admin, Tutor, and Student pages) always agree - change a
 // slot's time here and every page that displays it updates together.
 
-export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export const TIME_SLOTS = [
   { id: "morning", name: "Morning", startTime: "06:00", endTime: "07:00" },

@@ -195,11 +195,6 @@ export default function AdminClassroomPage({ user }) {
       return;
     }
 
-    if (day === "Saturday" || day === "Sunday") {
-      setMessage("ACAD live classes are scheduled Monday to Friday only.");
-      return;
-    }
-
     if (!form.studentIds.length) {
       setMessage("Please select at least one ACAD student.");
       return;
@@ -268,10 +263,6 @@ export default function AdminClassroomPage({ user }) {
         for (let i = 0; i < weeks; i++) {
           const occurrenceDate = addDays(form.date, i * 7);
           const occurrenceDay = dayFromDate(occurrenceDate);
-          // Skip if a repeat lands on a weekend (shouldn't normally happen
-          // since the base date is validated as a weekday, but guards
-          // against odd date-math edge cases).
-          if (occurrenceDay === "Saturday" || occurrenceDay === "Sunday") continue;
           await createClass(buildClassData(occurrenceDate, occurrenceDay));
           created++;
         }
