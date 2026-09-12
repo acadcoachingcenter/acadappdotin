@@ -21,7 +21,7 @@ export const ENTITY_CONFIG = {
   },
   Course: {
     table: "courses",
-    columns: ["title", "description", "tutor_id", "tutor_name", "subject", "grade_level", "price", "original_price", "offer_end_date", "duration_weeks", "max_students", "enrolled_students", "status"],
+    columns: ["title", "description", "tutor_id", "tutor_name", "subject", "grade_level", "price", "original_price", "offer_end_date", "duration_weeks", "max_students", "enrolled_students", "status", "course_type", "syllabus_board", "prescribed_fee", "revenue_split_tutor_pct", "syllabus_year"],
     arrayFields: [],
     boolFields: [],
   },
@@ -140,7 +140,7 @@ export const ENTITY_CONFIG = {
     table: "users",
     columns: ["email", "full_name", "phone", "user_type", "is_verified", "grade_class", "school_name", "syllabus", "subjects_interested", "location", "profile_image", "bio", "qualifications", "subjects_teaching", "experience_years", "hourly_rate", "rating", "total_students", "children_ids"],
     arrayFields: ["subjects_interested", "qualifications", "subjects_teaching", "children_ids"],
-    boolFields: ["is_verified"],
+    boolFields: [],
   },
 };
 
