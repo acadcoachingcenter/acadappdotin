@@ -21,19 +21,13 @@ export const ENTITY_CONFIG = {
   },
   Course: {
     table: "courses",
-    columns: ["title", "description", "tutor_id", "tutor_name", "subject", "grade_level", "price", "original_price", "offer_end_date", "duration_weeks", "max_students", "enrolled_students", "status"],
+    columns: ["title", "description", "tutor_id", "tutor_name", "subject", "grade_level", "price", "original_price", "offer_end_date", "duration_weeks", "max_students", "enrolled_students", "status", "course_type", "syllabus_board", "prescribed_fee", "revenue_split_tutor_pct", "syllabus_year"],
     arrayFields: [],
     boolFields: [],
   },
   Enrollment: {
     table: "enrollments",
     columns: ["student_id", "student_name", "student_email", "student_whatsapp", "course_id", "course_name", "tutor_id", "tutor_name", "amount_paid", "payment_transaction_id", "payment_receipt_url", "status", "enrollment_date", "remarks"],
-    arrayFields: [],
-    boolFields: [],
-  },
-  TutorPayment: {
-    table: "tutor_payments",
-    columns: ["tutor_id", "tutor_name", "amount", "payment_date", "payment_method", "notes"],
     arrayFields: [],
     boolFields: [],
   },
@@ -78,7 +72,7 @@ export const ENTITY_CONFIG = {
   },
   MockTest: {
     table: "mock_tests",
-    columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions", "exam_type", "status", "week_of"],
+    columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions"],
     arrayFields: [],
     boolFields: [],
   },
@@ -144,26 +138,19 @@ export const ENTITY_CONFIG = {
   },
   User: {
     table: "users",
-    columns: ["email", "full_name", "phone", "user_type", "account_status", "is_verified", "grade_class", "school_name", "syllabus", "subjects_interested", "location", "profile_image", "bio", "qualifications", "subjects_teaching", "experience_years", "hourly_rate", "rating", "total_students", "children_ids"],
+    columns: ["email", "full_name", "phone", "user_type", "is_verified", "grade_class", "school_name", "syllabus", "subjects_interested", "location", "profile_image", "bio", "qualifications", "subjects_teaching", "experience_years", "hourly_rate", "rating", "total_students", "children_ids"],
     arrayFields: ["subjects_interested", "qualifications", "subjects_teaching", "children_ids"],
-    boolFields: ["is_verified"],
+    boolFields: [],
   },
 };
 
 // Entities anyone can READ without logging in (public catalog / marketing pages)
-export const PUBLIC_READ = new Set([
-  "Course",
-  "OnlineBook",
-  "Event",
-  "ExamLevel",
-  "Topic",
-  "Review",
-  "MockTest",
-  "HomeTutor",
-]);
+export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel", "Topic", "Review", "MockTest"]);
 
-export const PUBLIC_CREATE = new Set([
-  "Inquiry",
-  "TuitionRequest",
-  "HomeTutor",
-]);
+// Entities anyone can CREATE without logging in (public intake forms)
+export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"]);
+
+// NOTE: base44's original per-entity read/write permission rules lived in the base44
+// dashboard and were NOT included in the code export, so these lists are a reasonable
+// reconstruction from how each entity is used in the frontend, not a guaranteed match.
+// Review before going live -- see MIGRATION_GUIDE.md 'Access rules' section.
