@@ -76,6 +76,7 @@ const ENTITY_NAMES = [
   "Enrollment",
   "Event",
   "ExamLevel",
+  "Expense",
   "HomeTutor",
   "Inquiry",
   "LiveClass",
