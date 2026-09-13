@@ -84,15 +84,27 @@ export default function Layout({ children, currentPageName }) {
   const [learningResources, setLearningResources] = useState([]);
 
   useEffect(() => {
-    apiClient.entities.LearningResource.list("display_order")
-      .then((data) => {
-        const active = (Array.isArray(data) ? data : []).filter((r) => r.is_active !== false);
-        setLearningResources(active);
-      })
-      .catch((error) => {
-        console.error("Error loading learning resources:", error);
-        setLearningResources([]);
-      });
+    // Optional chaining + try/catch here isn't just defensive style - a
+    // missing entity registration (like the LearningResource one that just
+    // shipped without being added to apiClient.js's ENTITY_NAMES) makes
+    // apiClient.entities.X undefined, and calling .list() on it throws
+    // synchronously, outside any promise - a plain .catch() doesn't catch
+    // that, and since Layout wraps every single page, it took down the
+    // entire site with a white screen instead of just this one section.
+    try {
+      apiClient.entities.LearningResource?.list("display_order")
+        .then((data) => {
+          const active = (Array.isArray(data) ? data : []).filter((r) => r.is_active !== false);
+          setLearningResources(active);
+        })
+        .catch((error) => {
+          console.error("Error loading learning resources:", error);
+          setLearningResources([]);
+        });
+    } catch (error) {
+      console.error("Error loading learning resources:", error);
+      setLearningResources([]);
+    }
   }, []);
 
 

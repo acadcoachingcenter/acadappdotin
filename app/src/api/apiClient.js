@@ -79,6 +79,7 @@ const ENTITY_NAMES = [
   "Expense",
   "HomeTutor",
   "Inquiry",
+  "LearningResource",
   "LiveClass",
   "MockTest",
   "OnlineBook",
