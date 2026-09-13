@@ -325,8 +325,8 @@ export default function Welcome() {
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 bg-[#1565C0] rounded-xl flex items-center justify-center">
-                  <GraduationCap className="w-7 h-7 text-white" />
+                <div className="w-12 h-12 rounded-full overflow-hidden">
+                  <img src="/images/acad-logo.jpeg" alt="ACAD" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">ACAD</h1>
