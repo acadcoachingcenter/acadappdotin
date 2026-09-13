@@ -17,10 +17,12 @@ import {
   Shield,
   UserPlus,
   FolderKanban,
-  ClipboardList
+  ClipboardList,
+  Receipt
 } from "lucide-react";
 import EnrollStudentModal from "../components/admin/EnrollStudentModal";
 import RecordTutorPaymentModal from "../components/admin/RecordTutorPaymentModal";
+import RecordExpenseModal from "../components/admin/RecordExpenseModal";
 
 export default function AdminDashboard() {
   const [user, setUser] = useState(null);
@@ -30,6 +32,7 @@ export default function AdminDashboard() {
     totalTutors: 0,
     grossRevenue: 0,
     tutorPayouts: 0,
+    otherExpenses: 0,
     netRevenue: 0,
     newInquiries: 0
   });
@@ -37,6 +40,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
 
   const loadData = async () => {
       try {
@@ -88,10 +92,12 @@ export default function AdminDashboard() {
 
         // Revenue: sum of amount_paid across all enrollments that aren't
         // rejected. "Gross" is fees collected from students; "payouts" is
-        // what's actually been paid out to tutors so far; "net" is the
-        // difference -- what ACAD has actually kept.
+        // what's actually been paid out to tutors so far; "other expenses"
+        // covers non-tutor business costs (marketing, pamphlets, distribution,
+        // etc.); "net" is what ACAD has actually kept after both.
         let grossRevenue = 0;
         let tutorPayouts = 0;
+        let otherExpenses = 0;
 
         try {
           const enrollmentResponse = await apiClient.entities.Enrollment.list();
@@ -121,6 +127,19 @@ export default function AdminDashboard() {
           console.error("Error fetching tutor payments:", payoutError);
         }
 
+        try {
+          const expenseResponse = await apiClient.entities.Expense.list();
+          const expenses = Array.isArray(expenseResponse)
+            ? expenseResponse
+            : Array.isArray(expenseResponse?.data)
+              ? expenseResponse.data
+              : [];
+
+          otherExpenses = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+        } catch (expenseError) {
+          console.error("Error fetching expenses:", expenseError);
+        }
+
         // Calculate dashboard statistics
         const totalUsers = allUsers.length;
 
@@ -138,7 +157,8 @@ export default function AdminDashboard() {
 
           grossRevenue,
           tutorPayouts,
-          netRevenue: grossRevenue - tutorPayouts,
+          otherExpenses,
+          netRevenue: grossRevenue - tutorPayouts - otherExpenses,
 
           newInquiries: newInquiryCount
         });
@@ -189,6 +209,15 @@ export default function AdminDashboard() {
           >
             <IndianRupee className="w-4 h-4 mr-1" />
             Record Tutor Payment
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowExpenseModal(true)}
+          >
+            <Receipt className="w-4 h-4 mr-1" />
+            Record Expense
           </Button>
 
           <div className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium">
@@ -259,6 +288,7 @@ export default function AdminDashboard() {
             <div className="mt-1 text-xs text-slate-500 space-y-0.5">
               <div>Fees collected: ₹{stats.grossRevenue.toLocaleString("en-IN")}</div>
               <div>Paid to tutors: ₹{stats.tutorPayouts.toLocaleString("en-IN")}</div>
+              <div>Other expenses: ₹{stats.otherExpenses.toLocaleString("en-IN")}</div>
             </div>
           </CardContent>
         </Card>
@@ -378,6 +408,15 @@ export default function AdminDashboard() {
           open={showPaymentModal}
           onOpenChange={setShowPaymentModal}
           onPaymentRecorded={loadData}
+        />
+      )}
+
+      {/* RECORD EXPENSE MODAL */}
+      {showExpenseModal && (
+        <RecordExpenseModal
+          open={showExpenseModal}
+          onOpenChange={setShowExpenseModal}
+          onExpenseRecorded={loadData}
         />
       )}
 

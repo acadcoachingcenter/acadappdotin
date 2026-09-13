@@ -12,85 +12,75 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { IndianRupee } from "lucide-react";
+import { Receipt } from "lucide-react";
 
-export default function RecordTutorPaymentModal({ open, onOpenChange, onPaymentRecorded }) {
+const EXPENSE_CATEGORIES = [
+  "Marketing",
+  "Pamphlets & Printing",
+  "Distribution",
+  "Software & Tools",
+  "Rent & Utilities",
+  "Other",
+];
+
+export default function RecordExpenseModal({ open, onOpenChange, onExpenseRecorded }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [tutors, setTutors] = useState([]);
-  const [isLoadingTutors, setIsLoadingTutors] = useState(false);
   const [formData, setFormData] = useState({
-    tutorId: "",
+    category: "Marketing",
+    description: "",
     amount: "",
-    paymentDate: new Date().toISOString().slice(0, 10),
+    expenseDate: new Date().toISOString().slice(0, 10),
+    vendor: "",
     paymentMethod: "UPI",
-    transactionId: "",
     notes: "",
   });
   const [error, setError] = useState("");
-
-  React.useEffect(() => {
-    if (open) {
-      loadTutors();
-    }
-  }, [open]);
-
-  const loadTutors = async () => {
-    setIsLoadingTutors(true);
-    try {
-      const allUsers = await apiClient.entities.User.filter({ user_type: "tutor" });
-      setTutors(Array.isArray(allUsers) ? allUsers : []);
-    } catch (err) {
-      console.error("Error loading tutors:", err);
-    }
-    setIsLoadingTutors(false);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!formData.tutorId) {
-      setError("Please select a tutor");
+    const amountNum = parseFloat(formData.amount);
+    if (!amountNum || amountNum <= 0) {
+      setError("Please enter a valid expense amount");
       return;
     }
 
-    const amountNum = parseFloat(formData.amount);
-    if (!amountNum || amountNum <= 0) {
-      setError("Please enter a valid payment amount");
+    if (!formData.description.trim()) {
+      setError("Please enter a short description of the expense");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const selectedTutor = tutors.find((t) => t.id === formData.tutorId);
-
-      await apiClient.entities.TutorPayment.create({
-        tutor_id: formData.tutorId,
-        tutor_name: selectedTutor?.full_name || selectedTutor?.email || "",
+      await apiClient.entities.Expense.create({
+        category: formData.category,
+        description: formData.description,
         amount: amountNum,
-        payment_date: formData.paymentDate,
+        expense_date: formData.expenseDate,
+        vendor: formData.vendor,
         payment_method: formData.paymentMethod,
-        transaction_id: formData.transactionId,
         notes: formData.notes,
       });
 
-      alert("✅ Payment recorded.");
+      alert("✅ Expense recorded.");
 
       setFormData({
-        tutorId: "",
+        category: "Marketing",
+        description: "",
         amount: "",
-        paymentDate: new Date().toISOString().slice(0, 10),
+        expenseDate: new Date().toISOString().slice(0, 10),
+        vendor: "",
         paymentMethod: "UPI",
-        transactionId: "",
         notes: "",
       });
 
-      onPaymentRecorded?.();
+      onExpenseRecorded?.();
       onOpenChange(false);
     } catch (err) {
-      console.error("Error recording tutor payment:", err);
-      setError(err.message || "Unable to record payment. Please try again.");
+      console.error("Error recording expense:", err);
+      setError(err.message || "Unable to record expense. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -101,12 +91,12 @@ export default function RecordTutorPaymentModal({ open, onOpenChange, onPaymentR
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <IndianRupee size={18} />
-            Record Tutor Payment
+            <Receipt size={18} />
+            Record Expense
           </DialogTitle>
           <DialogDescription>
-            Logs a payout to a tutor so the dashboard's revenue figures reflect what's actually
-            been paid out, not just fees collected.
+            Logs a business cost (marketing, pamphlets, distribution, etc.) so the dashboard's
+            net margin reflects true profit, not just fees minus tutor payouts.
           </DialogDescription>
         </DialogHeader>
 
@@ -118,18 +108,18 @@ export default function RecordTutorPaymentModal({ open, onOpenChange, onPaymentR
           )}
 
           <div>
-            <Label>Tutor</Label>
+            <Label>Category</Label>
             <Select
-              value={formData.tutorId}
-              onValueChange={(val) => setFormData({ ...formData, tutorId: val })}
+              value={formData.category}
+              onValueChange={(val) => setFormData({ ...formData, category: val })}
             >
               <SelectTrigger>
-                <SelectValue placeholder={isLoadingTutors ? "Loading tutors..." : "Select a tutor"} />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {tutors.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.full_name || t.email}
+                {EXPENSE_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -137,23 +127,43 @@ export default function RecordTutorPaymentModal({ open, onOpenChange, onPaymentR
           </div>
 
           <div>
-            <Label>Amount Paid (₹)</Label>
+            <Label>Description</Label>
+            <Input
+              type="text"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="e.g. 500 pamphlets for Anna Nagar distribution"
+            />
+          </div>
+
+          <div>
+            <Label>Amount (₹)</Label>
             <Input
               type="number"
               min="0"
               step="0.01"
               value={formData.amount}
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              placeholder="e.g. 700"
+              placeholder="e.g. 2500"
             />
           </div>
 
           <div>
-            <Label>Payment Date</Label>
+            <Label>Expense Date</Label>
             <Input
               type="date"
-              value={formData.paymentDate}
-              onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
+              value={formData.expenseDate}
+              onChange={(e) => setFormData({ ...formData, expenseDate: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <Label>Vendor (optional)</Label>
+            <Input
+              type="text"
+              value={formData.vendor}
+              onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
+              placeholder="e.g. Sri Printers"
             />
           </div>
 
@@ -176,21 +186,11 @@ export default function RecordTutorPaymentModal({ open, onOpenChange, onPaymentR
           </div>
 
           <div>
-            <Label>Transaction ID (optional)</Label>
-            <Input
-              type="text"
-              value={formData.transactionId}
-              onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
-              placeholder="e.g. UPI ref / bank UTR number"
-            />
-          </div>
-
-          <div>
             <Label>Notes (optional)</Label>
             <Textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="e.g. September fortnightly payout"
+              placeholder="Any additional context"
               rows={2}
             />
           </div>
@@ -200,7 +200,7 @@ export default function RecordTutorPaymentModal({ open, onOpenChange, onPaymentR
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Recording..." : "Record Payment"}
+              {isSubmitting ? "Recording..." : "Record Expense"}
             </Button>
           </div>
         </form>

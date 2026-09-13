@@ -130,6 +130,24 @@ export const ENTITY_CONFIG = {
     arrayFields: ["subjects", "interested_tutors"],
     boolFields: [],
   },
+  // Payouts recorded by admin against a tutor -- feeds the AdminDashboard's
+  // "Paid to tutors" figure. transaction_id mirrors Enrollment's
+  // payment_transaction_id so both sides of a payment have a paper trail.
+  TutorPayment: {
+    table: "tutor_payments",
+    columns: ["tutor_id", "tutor_name", "amount", "payment_date", "payment_method", "transaction_id", "notes"],
+    arrayFields: [],
+    boolFields: [],
+  },
+  // Non-tutor business costs (marketing, pamphlets/printing, distribution,
+  // tools/software, etc.) -- feeds the AdminDashboard's net margin so it
+  // reflects total cost, not just tutor payouts.
+  Expense: {
+    table: "expenses",
+    columns: ["category", "description", "amount", "expense_date", "vendor", "payment_method", "notes"],
+    arrayFields: [],
+    boolFields: [],
+  },
   TutorInterest: {
     table: "tutor_interests",
     columns: ["tutor_id", "tutor_name", "student_id", "student_name", "student_email", "message", "status", "date"],
@@ -149,6 +167,11 @@ export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel"
 
 // Entities anyone can CREATE without logging in (public intake forms)
 export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"]);
+
+// Financial-record entities: only admins may create/update/delete these,
+// regardless of who's logged in. (List/read still just requires login,
+// same as every other non-public entity.)
+export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense"]);
 
 // NOTE: base44's original per-entity read/write permission rules lived in the base44
 // dashboard and were NOT included in the code export, so these lists are a reasonable

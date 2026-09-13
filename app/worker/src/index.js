@@ -16,6 +16,7 @@ import {
   getEntityConfig,
   canReadPublic,
   canCreatePublic,
+  isAdminOnlyWrite,
   listEntity,
   filterEntity,
   getEntity,
@@ -522,6 +523,19 @@ app.post(
       );
     }
 
+    if (
+      isAdminOnlyWrite(name) &&
+      String(user?.user_type).toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
     const body =
       await c.req.json();
 
@@ -577,6 +591,19 @@ app.put(
       );
     }
 
+    if (
+      isAdminOnlyWrite(name) &&
+      String(user?.user_type).toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
     const body =
       await c.req.json();
 
@@ -626,6 +653,19 @@ app.delete(
             "Not authenticated",
         },
         401
+      );
+    }
+
+    if (
+      isAdminOnlyWrite(name) &&
+      String(user?.user_type).toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
       );
     }
 

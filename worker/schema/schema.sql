@@ -106,6 +106,36 @@ CREATE TABLE IF NOT EXISTS enrollments (
   remarks TEXT
 );
 
+-- Entity: TutorPayment
+CREATE TABLE IF NOT EXISTS tutor_payments (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  tutor_id TEXT,
+  tutor_name TEXT,
+  amount REAL,
+  payment_date TEXT,
+  payment_method TEXT,
+  transaction_id TEXT,
+  notes TEXT
+);
+
+-- Entity: Expense
+CREATE TABLE IF NOT EXISTS expenses (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  category TEXT,
+  description TEXT,
+  amount REAL,
+  expense_date TEXT,
+  vendor TEXT,
+  payment_method TEXT,
+  notes TEXT
+);
+
 -- Entity: Event
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,

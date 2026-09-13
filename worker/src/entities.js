@@ -1,4 +1,4 @@
-import { ENTITY_CONFIG, PUBLIC_READ, PUBLIC_CREATE } from "../entityConfig.js";
+import { ENTITY_CONFIG, PUBLIC_READ, PUBLIC_CREATE, ADMIN_ONLY_WRITE } from "../entityConfig.js";
 
 function serializeRow(cfg, row) {
   if (!row) return row;
@@ -40,6 +40,9 @@ export function canReadPublic(name) {
 }
 export function canCreatePublic(name) {
   return PUBLIC_CREATE.has(name);
+}
+export function isAdminOnlyWrite(name) {
+  return ADMIN_ONLY_WRITE.has(name);
 }
 
 export async function listEntity(env, name, { sort, limit } = {}) {
