@@ -3,6 +3,7 @@ import { apiClient } from '@/api/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   CheckCircle,
   XCircle,
@@ -15,7 +16,10 @@ import {
   Phone,
   AlertCircle,
   Trash2,
-  FileText
+  FileText,
+  Pencil,
+  Save,
+  X
 } from 'lucide-react';
 import EnrollStudentModal from '../components/admin/EnrollStudentModal';
 import AdmissionCardModal from '../components/admin/AdmissionCardModal';
@@ -45,6 +49,9 @@ export default function AdminEnrollmentManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [admissionEnrollment, setAdmissionEnrollment] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -454,6 +461,58 @@ export default function AdminEnrollmentManagement() {
     }
   };
 
+  const startEdit = (enrollment) => {
+    setEditingId(enrollment.id);
+    setEditForm({
+      student_name: enrollment.student_name || "",
+      student_email: enrollment.student_email && enrollment.student_email.includes("@whatsapp.temp")
+        ? ""
+        : enrollment.student_email || "",
+      student_whatsapp: enrollment.student_whatsapp || "",
+      amount_paid: enrollment.amount_paid || "",
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm({});
+  };
+
+  const handleSaveEdit = async (enrollment) => {
+    if (!editForm.student_email && !editForm.student_whatsapp) {
+      alert("Please provide either an email or a WhatsApp number.");
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    try {
+      // Same email-fallback convention used at enrollment creation time -
+      // an enrollment always needs a non-empty student_email value, so a
+      // WhatsApp-only contact gets a synthetic @whatsapp.temp address.
+      const email = editForm.student_email
+        ? editForm.student_email.toLowerCase().trim()
+        : editForm.student_whatsapp
+        ? `${editForm.student_whatsapp.replace(/\D/g, "")}@whatsapp.temp`
+        : enrollment.student_email;
+
+      await apiClient.entities.Enrollment.update(enrollment.id, {
+        student_name: editForm.student_name.trim(),
+        student_email: email,
+        student_whatsapp: editForm.student_whatsapp.trim(),
+        amount_paid: parseFloat(editForm.amount_paid) || 0,
+      });
+
+      cancelEdit();
+      await loadEnrollments();
+    } catch (error) {
+      console.error("Error updating enrollment:", error);
+      alert("Failed to update enrollment: " + error.message);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const handleDelete = async (enrollment) => {
     const student =
       enrollment.student_name ||
@@ -807,6 +866,74 @@ export default function AdminEnrollmentManagement() {
 
                         </div>
 
+                        {editingId === enrollment.id ? (
+                          <div className="grid md:grid-cols-2 gap-3 mb-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-700">
+                                Student Name
+                              </label>
+                              <Input
+                                value={editForm.student_name}
+                                onChange={(e) =>
+                                  setEditForm({ ...editForm, student_name: e.target.value })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-700">
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={editForm.student_email}
+                                onChange={(e) =>
+                                  setEditForm({ ...editForm, student_email: e.target.value })
+                                }
+                                placeholder="student@example.com"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-700">
+                                WhatsApp Number
+                              </label>
+                              <Input
+                                type="tel"
+                                value={editForm.student_whatsapp}
+                                onChange={(e) =>
+                                  setEditForm({ ...editForm, student_whatsapp: e.target.value })
+                                }
+                                placeholder="+91 9876543210"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-700">
+                                Fee (₹/month)
+                              </label>
+                              <Input
+                                type="number"
+                                value={editForm.amount_paid}
+                                onChange={(e) =>
+                                  setEditForm({ ...editForm, amount_paid: e.target.value })
+                                }
+                              />
+                            </div>
+                            <div className="md:col-span-2 flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveEdit(enrollment)}
+                                disabled={isSavingEdit}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                <Save className="w-4 h-4 mr-1" />
+                                {isSavingEdit ? "Saving..." : "Save"}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={cancelEdit}>
+                                <X className="w-4 h-4 mr-1" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
                         <div className="grid md:grid-cols-2 gap-2 text-sm text-slate-600 mb-2">
 
                           {hasEmail && (
@@ -881,6 +1008,7 @@ export default function AdminEnrollmentManagement() {
                           </p>
 
                         </div>
+                        )}
 
                         {enrollment.remarks && (
                           <div className="mt-2 p-2 bg-slate-50 rounded text-sm text-slate-700">
@@ -1008,6 +1136,16 @@ export default function AdminEnrollmentManagement() {
                             Reactivate
                           </Button>
                         )}
+
+                        <Button
+                          onClick={() => startEdit(enrollment)}
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
 
                         <Button
                           onClick={() =>
