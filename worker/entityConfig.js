@@ -70,6 +70,15 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: ["is_active"],
   },
+  // Admin-managed list of external learning websites/tools shown in the
+  // "Learning Websites" sidebar section for tutors and students. Replaces
+  // what used to be a hardcoded array in Layout.jsx.
+  LearningResource: {
+    table: "learning_resources",
+    columns: ["title", "url", "display_order", "is_active"],
+    arrayFields: [],
+    boolFields: ["is_active"],
+  },
   MockTest: {
     table: "mock_tests",
     columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions"],

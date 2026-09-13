@@ -50,6 +50,7 @@
 import AcademicEssentials from './pages/AcademicEssentials';
 import AdminCourseManagement from './pages/AdminCourseManagement';
 import AdminClassroomLinks from './pages/AdminClassroomLinks';
+import AdminLearningResources from './pages/AdminLearningResources';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminEnrollmentManagement from './pages/AdminEnrollmentManagement';
 import AdminEventManagement from './pages/AdminEventManagement';
@@ -90,6 +91,7 @@ export const PAGES = {
     "AcademicEssentials": AcademicEssentials,
     "AdminCourseManagement": AdminCourseManagement,
     "AdminClassroomLinks": AdminClassroomLinks,
+    "AdminLearningResources": AdminLearningResources,
     "AdminDashboard": AdminDashboard,
     "AdminEnrollmentManagement": AdminEnrollmentManagement,
     "AdminEventManagement": AdminEventManagement,

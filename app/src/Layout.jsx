@@ -81,6 +81,20 @@ export default function Layout({ children, currentPageName }) {
     "LEARNING WEBSITES": false,
   });
 
+  const [learningResources, setLearningResources] = useState([]);
+
+  useEffect(() => {
+    apiClient.entities.LearningResource.list("display_order")
+      .then((data) => {
+        const active = (Array.isArray(data) ? data : []).filter((r) => r.is_active !== false);
+        setLearningResources(active);
+      })
+      .catch((error) => {
+        console.error("Error loading learning resources:", error);
+        setLearningResources([]);
+      });
+  }, []);
+
 
   /* =========================================================
      CHATBASE
@@ -381,29 +395,12 @@ export default function Layout({ children, currentPageName }) {
         isHeader: true,
       },
 
-      {
-        title: "PhET Simulations",
-        url:
-          "https://phet.colorado.edu/",
+      ...learningResources.map((resource) => ({
+        title: resource.title,
+        url: resource.url,
         icon: BookOpen,
         external: true,
-      },
-
-      {
-        title: "Learning Resource 1",
-        url:
-          "https://share.google/PuX3WnxzJoYGQQuRQ",
-        icon: BookOpen,
-        external: true,
-      },
-
-      {
-        title: "Learning Resource 2",
-        url:
-          "https://share.google/ZSKrUcW2GF8okeBwS",
-        icon: BookOpen,
-        external: true,
-      },
+      })),
 
     ];
 
@@ -595,6 +592,15 @@ export default function Layout({ children, currentPageName }) {
               "AdminClassroomLinks"
             ),
           icon: Video,
+        },
+
+        {
+          title: "Learning Websites",
+          url:
+            createPageUrl(
+              "AdminLearningResources"
+            ),
+          icon: BookOpen,
         },
 
         {
