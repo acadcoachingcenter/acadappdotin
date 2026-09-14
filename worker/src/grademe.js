@@ -124,20 +124,17 @@ export async function generateGradeMeQuestions(env, { subject, chapter, chapterT
   return { created, chunkCount, requested: n, drafted: drafted.length };
 }
 
-/** Proxies SchoolBook's public (unauthenticated) subject list, server-to-server,
- * so the browser only ever talks to acad-api and never hits SchoolBook's CORS
- * rules directly. */
-export async function fetchSchoolBookSubjects(env) {
+/** Proxies SchoolBook's "available chapters" registry -- the actual record of
+ * what's been ingested into Vectorize, with the exact subjectId/chapterId
+ * strings used as metadata (NOT the same ID space as SchoolBook's static
+ * data/subjects.json curriculum list, which may use different IDs than
+ * whatever was typed into the ingest form). This is the correct source for
+ * GradeMe's picker -- it guarantees every chapter shown here actually has
+ * ingested content behind it. */
+export async function fetchAvailableChapters(env) {
   if (!env.SCHOOLBOOK_API_URL) throw new Error("SCHOOLBOOK_API_URL is not configured.");
-  const res = await fetch(`${env.SCHOOLBOOK_API_URL}/api/subjects`);
-  if (!res.ok) throw new Error(`SchoolBook /api/subjects failed (${res.status}).`);
-  return res.json();
-}
-
-/** Same proxy pattern for a given subject's chapter list. */
-export async function fetchSchoolBookChapters(env, subjectId) {
-  if (!env.SCHOOLBOOK_API_URL) throw new Error("SCHOOLBOOK_API_URL is not configured.");
-  const res = await fetch(`${env.SCHOOLBOOK_API_URL}/api/chapters?subject=${encodeURIComponent(subjectId)}`);
-  if (!res.ok) throw new Error(`SchoolBook /api/chapters failed (${res.status}).`);
-  return res.json();
+  const res = await fetch(`${env.SCHOOLBOOK_API_URL}/api/available-chapters`);
+  if (!res.ok) throw new Error(`SchoolBook /api/available-chapters failed (${res.status}).`);
+  const data = await res.json();
+  return Array.isArray(data?.available) ? data.available : [];
 }

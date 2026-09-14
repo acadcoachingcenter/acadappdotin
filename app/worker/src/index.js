@@ -36,8 +36,7 @@ import { invokeLLM } from "./llm.js";
 
 import {
   generateGradeMeQuestions,
-  fetchSchoolBookSubjects,
-  fetchSchoolBookChapters,
+  fetchAvailableChapters,
 } from "./grademe.js";
 
 import {
@@ -863,12 +862,14 @@ app.post(
 
 
 /*
- * Proxy SchoolBook's subject list -- any logged-in user. Kept server-to-server
- * so the browser only ever talks to acad-api, never to schoolbooks.acadapp.in
- * directly (SchoolBook's own CORS rules only allow its own subdomain origins).
+ * Proxy SchoolBook's "available chapters" registry -- any logged-in user.
+ * This is the actual record of what's been ingested into Vectorize (not
+ * SchoolBook's static curriculum list, which can use different chapter IDs
+ * than what's really been uploaded) -- so every chapter this returns is
+ * guaranteed to have real content behind it for /api/grademe/generate.
  */
 app.get(
-  "/api/grademe/subjects",
+  "/api/grademe/available-chapters",
   async (c) => {
 
     const user =
@@ -890,67 +891,8 @@ app.get(
     try {
 
       return c.json(
-        await fetchSchoolBookSubjects(
+        await fetchAvailableChapters(
           c.env
-        )
-      );
-
-    } catch (e) {
-
-      return c.json(
-        {
-          error:
-            e.message,
-        },
-        502
-      );
-    }
-  }
-);
-
-
-/*
- * Proxy SchoolBook's chapter list for a given subject -- any logged-in user.
- */
-app.get(
-  "/api/grademe/chapters",
-  async (c) => {
-
-    const user =
-      await getSessionUser(
-        c.req.raw,
-        c.env
-      );
-
-    if (!user) {
-      return c.json(
-        {
-          error:
-            "Not authenticated",
-        },
-        401
-      );
-    }
-
-    const subject =
-      c.req.query("subject");
-
-    if (!subject) {
-      return c.json(
-        {
-          error:
-            "Missing 'subject' query parameter",
-        },
-        400
-      );
-    }
-
-    try {
-
-      return c.json(
-        await fetchSchoolBookChapters(
-          c.env,
-          subject
         )
       );
 

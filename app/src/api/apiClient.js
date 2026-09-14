@@ -425,18 +425,13 @@ const functionsApi = {
 
 
 /*
- * GradeMe -- generation trigger + SchoolBook subject/chapter proxies.
+ * GradeMe -- generation trigger + SchoolBook's ingested-chapter registry.
  * (Approved-question reads/approve/reject go through apiClient.entities.GradeMeQuestion.)
  */
 const grademeApi = {
 
-  subjects: () =>
-    apiFetch("/api/grademe/subjects"),
-
-  chapters: (subject) =>
-    apiFetch(
-      `/api/grademe/chapters?subject=${encodeURIComponent(subject)}`
-    ),
+  availableChapters: () =>
+    apiFetch("/api/grademe/available-chapters"),
 
   generate: (payload) =>
     apiFetch(

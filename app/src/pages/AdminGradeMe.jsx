@@ -24,8 +24,7 @@ import {
 const DIFFICULTIES = ["easy", "medium", "hard", "mixed"];
 
 export default function AdminGradeMe() {
-  const [subjects, setSubjects] = useState([]);
-  const [chapters, setChapters] = useState([]);
+  const [availableChapters, setAvailableChapters] = useState([]); // flat list from SchoolBook's ingested-chapter registry
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedChapter, setSelectedChapter] = useState("");
   const [count, setCount] = useState(10);
@@ -33,38 +32,45 @@ export default function AdminGradeMe() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
   const [generateResult, setGenerateResult] = useState(null);
+  const [isLoadingChapters, setIsLoadingChapters] = useState(true);
+  const [chapterLoadError, setChapterLoadError] = useState("");
 
   const [pending, setPending] = useState([]);
   const [isLoadingQueue, setIsLoadingQueue] = useState(true);
   const [edits, setEdits] = useState({}); // { [questionId]: { question, options[4], correct_index, explanation } }
   const [savingId, setSavingId] = useState(null);
 
-  // ---------- Subject / chapter pickers, sourced from SchoolBook ----------
+  // ---------- Subject / chapter pickers, sourced from SchoolBook's actual
+  // ingested-chapter registry (not its static curriculum list) -- every
+  // chapter shown here is guaranteed to have real content behind it. ----------
 
   useEffect(() => {
+    setIsLoadingChapters(true);
     apiClient.grademe
-      .subjects()
-      .then((data) => setSubjects(Array.isArray(data) ? data : []))
+      .availableChapters()
+      .then((data) => {
+        setAvailableChapters(Array.isArray(data) ? data : []);
+        setChapterLoadError("");
+      })
       .catch((error) => {
-        console.error("Error loading subjects:", error);
-        setSubjects([]);
-      });
+        console.error("Error loading available chapters:", error);
+        setAvailableChapters([]);
+        setChapterLoadError(error.message || "Failed to load ingested chapters from SchoolBook.");
+      })
+      .finally(() => setIsLoadingChapters(false));
   }, []);
 
-  useEffect(() => {
-    if (!selectedSubject) {
-      setChapters([]);
-      setSelectedChapter("");
-      return;
+  // Unique subjects present in the registry, in first-seen order.
+  const subjects = [];
+  const seenSubjects = new Set();
+  for (const c of availableChapters) {
+    if (!seenSubjects.has(c.subjectId)) {
+      seenSubjects.add(c.subjectId);
+      subjects.push(c);
     }
-    apiClient.grademe
-      .chapters(selectedSubject)
-      .then((data) => setChapters(Array.isArray(data) ? data : []))
-      .catch((error) => {
-        console.error("Error loading chapters:", error);
-        setChapters([]);
-      });
-  }, [selectedSubject]);
+  }
+
+  const chaptersForSubject = availableChapters.filter((c) => c.subjectId === selectedSubject);
 
   // ---------- Pending queue ----------
 
@@ -121,16 +127,13 @@ export default function AdminGradeMe() {
     setGenerateError("");
     setGenerateResult(null);
 
-    const chapterObj = chapters.find((c) => c.id === selectedChapter);
-    const subjectObj = subjects.find((s) => s.id === selectedSubject);
+    const chapterObj = chaptersForSubject.find((c) => c.chapterId === selectedChapter);
 
     try {
       const result = await apiClient.grademe.generate({
         subject: selectedSubject,
         chapter: selectedChapter,
-        chapterTitle: chapterObj
-          ? `${subjectObj?.name || ""} — ${chapterObj.name}`.trim()
-          : selectedChapter,
+        chapterTitle: chapterObj?.chapterTitle || selectedChapter,
         count,
         difficulty,
       });
@@ -201,17 +204,23 @@ export default function AdminGradeMe() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {chapterLoadError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              Couldn't load ingested chapters: {chapterLoadError}
+            </p>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Subject</Label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <Select value={selectedSubject} onValueChange={(v) => { setSelectedSubject(v); setSelectedChapter(""); }}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a subject" />
+                  <SelectValue placeholder={isLoadingChapters ? "Loading…" : "Select a subject"} />
                 </SelectTrigger>
                 <SelectContent>
                   {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.className ? `${s.className} — ${s.name}` : s.name}
+                    <SelectItem key={s.subjectId} value={s.subjectId}>
+                      {s.className ? `${s.className} — ${s.subjectName}` : s.subjectName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -229,9 +238,9 @@ export default function AdminGradeMe() {
                   <SelectValue placeholder={selectedSubject ? "Select a chapter" : "Pick a subject first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {chapters.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
+                  {chaptersForSubject.map((c) => (
+                    <SelectItem key={c.chapterId} value={c.chapterId}>
+                      {c.chapterTitle}
                     </SelectItem>
                   ))}
                 </SelectContent>
