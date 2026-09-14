@@ -433,6 +433,9 @@ const grademeApi = {
   availableChapters: () =>
     apiFetch("/api/grademe/available-chapters"),
 
+  topics: () =>
+    apiFetch("/api/grademe/topics"),
+
   generate: (payload) =>
     apiFetch(
       "/api/grademe/generate",

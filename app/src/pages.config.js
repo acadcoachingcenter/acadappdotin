@@ -55,6 +55,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminEnrollmentManagement from './pages/AdminEnrollmentManagement';
 import AdminEventManagement from './pages/AdminEventManagement';
 import AdminGradeMe from './pages/AdminGradeMe';
+import GradeMe from './pages/GradeMe';
 import AdminInquiryManagement from './pages/AdminInquiryManagement';
 import AdminTutorManagement from './pages/AdminTutorManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
@@ -97,6 +98,7 @@ export const PAGES = {
     "AdminEnrollmentManagement": AdminEnrollmentManagement,
     "AdminEventManagement": AdminEventManagement,
     "AdminGradeMe": AdminGradeMe,
+    "GradeMe": GradeMe,
     "AdminInquiryManagement": AdminInquiryManagement,
     "AdminTutorManagement": AdminTutorManagement,
     "AttendanceManagement": AttendanceManagement,

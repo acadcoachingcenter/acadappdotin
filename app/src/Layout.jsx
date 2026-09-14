@@ -625,6 +625,15 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
+          title: "GradeMe",
+          url:
+            createPageUrl(
+              "GradeMe"
+            ),
+          icon: Sparkles,
+        },
+
+        {
           title: "Online Classroom",
           url:
             createPageUrl(
@@ -769,6 +778,15 @@ export default function Layout({ children, currentPageName }) {
               "WeeklyMockTest"
             ),
           icon: FileQuestion,
+        },
+
+        {
+          title: "GradeMe",
+          url:
+            createPageUrl(
+              "GradeMe"
+            ),
+          icon: Sparkles,
         },
 
         {
@@ -1049,6 +1067,15 @@ export default function Layout({ children, currentPageName }) {
               "WeeklyMockTest"
             ),
           icon: FileQuestion,
+        },
+
+        {
+          title: "GradeMe",
+          url:
+            createPageUrl(
+              "GradeMe"
+            ),
+          icon: Sparkles,
         },
 
         {

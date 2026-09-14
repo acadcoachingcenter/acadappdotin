@@ -124,6 +124,21 @@ export async function generateGradeMeQuestions(env, { subject, chapter, chapterT
   return { created, chunkCount, requested: n, drafted: drafted.length };
 }
 
+/** Distinct subject/chapter combos that actually have at least one approved
+ * question -- this is what students pick from, so they never land on an
+ * empty quiz. Grouped/aggregated directly in D1 rather than pulling every
+ * row and grouping in JS. */
+export async function listApprovedTopics(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT subject, chapter, chapter_title, COUNT(*) as question_count
+     FROM grademe_questions
+     WHERE status = 'approved'
+     GROUP BY subject, chapter, chapter_title
+     ORDER BY chapter_title ASC`
+  ).all();
+  return results || [];
+}
+
 /** Proxies SchoolBook's "available chapters" registry -- the actual record of
  * what's been ingested into Vectorize, with the exact subjectId/chapterId
  * strings used as metadata (NOT the same ID space as SchoolBook's static

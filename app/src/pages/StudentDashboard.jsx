@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { Course } from "@/entities/Course";
 import { Enrollment } from "@/entities/Enrollment";
 import {
@@ -264,6 +266,32 @@ export default function StudentDashboard() {
               Open Smart Classroom
               <ExternalLink className="w-4 h-4 ml-2" />
             </a>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* GRADEME -- self-graded practice for idle moments (waiting on a tutor,
+          between classes, or just extra practice) */}
+      <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-sky-50">
+        <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Sparkles className="w-6 h-6 text-[#1565C0] mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-slate-900">
+                Got a few free minutes?
+              </p>
+              <p className="text-sm text-slate-600 mt-0.5">
+                Try GradeMe — quick self-graded practice questions with instant scoring and explanations.
+              </p>
+            </div>
+          </div>
+          <Button
+            asChild
+            className="bg-[#1565C0] hover:bg-[#1e88e5] whitespace-nowrap"
+          >
+            <Link to={createPageUrl("GradeMe")}>
+              Start GradeMe
+            </Link>
           </Button>
         </CardContent>
       </Card>

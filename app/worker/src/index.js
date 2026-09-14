@@ -37,6 +37,7 @@ import { invokeLLM } from "./llm.js";
 import {
   generateGradeMeQuestions,
   fetchAvailableChapters,
+  listApprovedTopics,
 } from "./grademe.js";
 
 import {
@@ -892,6 +893,52 @@ app.get(
 
       return c.json(
         await fetchAvailableChapters(
+          c.env
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Topics students/tutors can actually practice right now -- only
+ * subject/chapter combos with at least one approved question.
+ */
+app.get(
+  "/api/grademe/topics",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    try {
+
+      return c.json(
+        await listApprovedTopics(
           c.env
         )
       );
