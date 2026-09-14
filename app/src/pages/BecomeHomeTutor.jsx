@@ -78,6 +78,8 @@ export default function BecomeHomeTutor() {
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [pincode, setPincode] = useState("");
+  const [pincodeLocating, setPincodeLocating] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
 
@@ -94,6 +96,27 @@ export default function BecomeHomeTutor() {
       }
     } catch (e) {
       console.error("geocode error", e);
+    }
+    return null;
+  };
+
+  // PIN codes are exact, unlike a full free-text address, so this queries
+  // Nominatim's structured postalcode field directly instead of the
+  // general-purpose search -- reliable even when the rest of the address
+  // is messy, abbreviated, or spelled inconsistently.
+  const geocodePincode = async (pin) => {
+    if (!/^\d{6}$/.test(pin || "")) return null;
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&country=India&postalcode=${encodeURIComponent(pin)}`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const data = await res.json();
+      if (data && data.length > 0) {
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      }
+    } catch (e) {
+      console.error("pincode geocode error", e);
     }
     return null;
   };
@@ -423,6 +446,44 @@ export default function BecomeHomeTutor() {
                 onChange={e => update("availability", e.target.value)}
                 placeholder="e.g., Weekdays 5-8 PM, Weekends morning"
               />
+            </div>
+            <div>
+              <Label>PIN code (recommended)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={pincode}
+                  onChange={e => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="6-digit PIN code"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    setPincodeLocating(true);
+                    const g = await geocodePincode(pincode);
+                    setPincodeLocating(false);
+                    if (g) {
+                      update("latitude", g.lat);
+                      update("longitude", g.lng);
+                      if (!form.address.includes(pincode)) {
+                        update("address", form.address ? `${form.address}, ${pincode}` : pincode);
+                      }
+                      toast({ title: "Location found from PIN code" });
+                    } else {
+                      toast({ title: "PIN code not found. Try the full address below or GPS.", variant: "destructive" });
+                    }
+                  }}
+                  disabled={pincodeLocating || !/^\d{6}$/.test(pincode)}
+                >
+                  {pincodeLocating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MapPin className="w-4 h-4 mr-2" />}
+                  Locate
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Most reliable way to set your location -- no risk of a misspelled area name failing to match.
+              </p>
             </div>
             <div>
               <Label>Address / Locality</Label>
