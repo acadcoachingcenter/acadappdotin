@@ -45,6 +45,7 @@ export default function FindTeachersNearYou() {
   const [locating, setLocating] = useState(false);
   const [origin, setOrigin] = useState(null);
   const [address, setAddress] = useState("");
+  const [pincode, setPincode] = useState("");
   const [radius, setRadius] = useState(5);
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [contactingId, setContactingId] = useState(null);
@@ -93,10 +94,38 @@ export default function FindTeachersNearYou() {
         setOrigin({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
         toast({ title: "Location found" });
       } else {
-        toast({ title: "Address not found. Try GPS.", variant: "destructive" });
+        toast({ title: "Address not found. Try GPS or a PIN code instead.", variant: "destructive" });
       }
     } catch (e) {
       toast({ title: "Could not geocode address", variant: "destructive" });
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  // PIN codes are exact, unlike free-text place names, so this skips the
+  // general-purpose search endpoint and queries Nominatim's structured
+  // postalcode field directly -- no risk of a misspelled area name
+  // matching the wrong place or nothing at all.
+  const geocodePincode = async () => {
+    if (!/^\d{6}$/.test(pincode.trim())) {
+      toast({ title: "Enter a valid 6-digit PIN code", variant: "destructive" });
+      return;
+    }
+    setLocating(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&country=India&postalcode=${encodeURIComponent(pincode.trim())}`
+      );
+      const data = await res.json();
+      if (data && data[0]) {
+        setOrigin({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+        toast({ title: "Location found" });
+      } else {
+        toast({ title: "PIN code not found. Try GPS or an address instead.", variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Could not look up PIN code", variant: "destructive" });
     } finally {
       setLocating(false);
     }
@@ -185,23 +214,36 @@ export default function FindTeachersNearYou() {
                 <Button onClick={geocodeAddress} disabled={locating}>Search</Button>
               </div>
             </div>
+            <div>
+              <Label>Or search by PIN code</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={pincode}
+                  onChange={e => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="6-digit PIN code"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+                <Button onClick={geocodePincode} disabled={locating}>Search</Button>
+              </div>
+            </div>
             <div className="flex items-end">
               <Button variant="outline" onClick={useGPS} disabled={locating} className="w-full">
                 {locating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LocateFixed className="w-4 h-4 mr-2" />}
                 Use my GPS location
               </Button>
             </div>
-            <div>
-              <Label>Search radius: {radius} km</Label>
-              <input
-                type="range"
-                min={1}
-                max={50}
-                value={radius}
-                onChange={e => setRadius(Number(e.target.value))}
-                className="w-full"
-              />
-            </div>
+          </div>
+          <div>
+            <Label>Search radius: {radius} km</Label>
+            <input
+              type="range"
+              min={1}
+              max={50}
+              value={radius}
+              onChange={e => setRadius(Number(e.target.value))}
+              className="w-full"
+            />
           </div>
           {allSubjects.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
