@@ -284,7 +284,14 @@ export default function Welcome() {
           * { box-sizing: border-box; }
           img { max-width: 100%; height: auto; }
           .hero-image { aspect-ratio: 4/3; object-fit: cover; }
+
+          @keyframes pulseCta {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.5); transform: scale(1); }
+            50% { box-shadow: 0 0 0 8px rgba(244, 63, 94, 0); transform: scale(1.02); }
+          }
+          .animate-pulse-cta { animation: pulseCta 2s ease-in-out infinite; }
         `}
+        
       </style>
 
       <div className="ed-body">
@@ -325,8 +332,8 @@ export default function Welcome() {
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
               <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 rounded-full overflow-hidden">
-                  <img src="/images/acad-logo.jpeg" alt="ACAD" className="w-full h-full object-cover" />
+                <div className="w-12 h-12 bg-[#1565C0] rounded-xl flex items-center justify-center">
+                  <GraduationCap className="w-7 h-7 text-white" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">ACAD</h1>
@@ -360,14 +367,14 @@ export default function Welcome() {
     </span>
   </button>
 
-  {/* Register Interest */}
+    {/* Student Registration */}
   <Link
     to={createPageUrl("RegisterInquiry")}
-    className="w-full h-full min-w-0 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400 px-2 transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-sm sm:text-sm leading-tight"
+    className="w-full h-full min-w-0 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white hover:from-rose-600 hover:to-orange-600 px-2 shadow-md hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-sm sm:text-sm leading-tight animate-pulse-cta"
     aria-label="Register your interest in ACAD"
   >
     <UserIcon className="w-5 h-5 mb-2 shrink-0" />
-    <span>Register Interest</span>
+    <span>Student Registration</span>
   </Link>
 
   {/* Find Tutor */}
