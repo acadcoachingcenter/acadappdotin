@@ -96,6 +96,14 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: [],
   },
+  // AI-drafted weekly test for one course, built from its recent TopicLog
+  // entries. status="pending" until an admin approves it for students.
+  WeeklyPaper: {
+    table: "weekly_papers",
+    columns: ["course_id", "exam_type", "title", "topics_covered", "total_questions", "duration_minutes", "marks_correct", "marks_wrong", "questions", "status", "source"],
+    arrayFields: ["topics_covered", "questions"],
+    boolFields: [],
+  },
   MockTest: {
     table: "mock_tests",
     columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions"],
@@ -189,7 +197,7 @@ export const ENTITY_CONFIG = {
 };
 
 // Entities anyone can READ without logging in (public catalog / marketing pages)
-export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel", "Topic", "Review", "MockTest"]);
+export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel", "Topic", "Review", "MockTest", "LearningResource"]);
 
 // Entities anyone can CREATE without logging in (public intake forms)
 export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"]);
@@ -200,7 +208,7 @@ export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"])
 // GradeMeQuestion: only admins can create (trigger AI drafting) or update
 // (approve/reject/edit) -- students only ever read approved rows via the
 // generic filter route, which just requires being logged in.
-export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "GradeMeQuestion"]);
+export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "GradeMeQuestion", "WeeklyPaper"]);
 
 // NOTE: base44's original per-entity read/write permission rules lived in the base44
 // dashboard and were NOT included in the code export, so these lists are a reasonable
