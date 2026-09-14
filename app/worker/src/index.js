@@ -35,6 +35,12 @@ import {
 import { invokeLLM } from "./llm.js";
 
 import {
+  generateGradeMeQuestions,
+  fetchSchoolBookSubjects,
+  fetchSchoolBookChapters,
+} from "./grademe.js";
+
+import {
   handleUpload,
   serveFile,
 } from "./upload.js";
@@ -764,6 +770,187 @@ app.post(
         await invokeLLM(
           c.env,
           await c.req.json()
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * ---------- GradeMe ----------
+ *
+ * Self-grade practice questions students can reach any time, aimed at the
+ * moment a tutor is unreachable and a student is left waiting. Questions are
+ * AI-drafted from SchoolBook's ingested NCERT chapter content and held as
+ * "pending" until an admin approves them -- see grademe.js.
+ */
+
+
+/*
+ * Trigger AI drafting of new GradeMe questions for a subject/chapter --
+ * admin only. Writes rows to grademe_questions with status "pending".
+ */
+app.post(
+  "/api/grademe/generate",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const body =
+        await c.req.json();
+
+      const result =
+        await generateGradeMeQuestions(
+          c.env,
+          body,
+          user.id
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Proxy SchoolBook's subject list -- any logged-in user. Kept server-to-server
+ * so the browser only ever talks to acad-api, never to schoolbooks.acadapp.in
+ * directly (SchoolBook's own CORS rules only allow its own subdomain origins).
+ */
+app.get(
+  "/api/grademe/subjects",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    try {
+
+      return c.json(
+        await fetchSchoolBookSubjects(
+          c.env
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Proxy SchoolBook's chapter list for a given subject -- any logged-in user.
+ */
+app.get(
+  "/api/grademe/chapters",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    const subject =
+      c.req.query("subject");
+
+    if (!subject) {
+      return c.json(
+        {
+          error:
+            "Missing 'subject' query parameter",
+        },
+        400
+      );
+    }
+
+    try {
+
+      return c.json(
+        await fetchSchoolBookChapters(
+          c.env,
+          subject
         )
       );
 

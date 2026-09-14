@@ -457,3 +457,47 @@ CREATE TABLE IF NOT EXISTS subject_classrooms (
   is_active INTEGER
 );
 
+-- Entity: LearningResource
+-- Admin-managed list of external learning websites/tools shown in the
+-- "Learning Websites" sidebar section for tutors and students. The frontend
+-- (Layout.jsx, AdminLearningResources.jsx) already reads/writes this entity --
+-- this table was the missing piece; it was never created after the entity
+-- was added to apiClient.js and worker/entityConfig.js (but not this deployed
+-- copy), so the feature has been silently returning nothing since it shipped.
+CREATE TABLE IF NOT EXISTS learning_resources (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  title TEXT,
+  url TEXT,
+  display_order REAL,
+  is_active INTEGER
+);
+
+-- Entity: GradeMeQuestion
+-- Self-grade practice questions for the "GradeMe" feature. AI-drafted from
+-- SchoolBook's ingested NCERT chapter content (source='ai', status='pending'),
+-- reviewed and approved by an admin before students can see them
+-- (status='approved'). Manually authored questions use source='manual'.
+CREATE TABLE IF NOT EXISTS grademe_questions (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  subject TEXT,
+  chapter TEXT,
+  chapter_title TEXT,
+  question TEXT,
+  options TEXT,
+  correct_index INTEGER,
+  explanation TEXT,
+  difficulty TEXT,
+  status TEXT DEFAULT 'pending',
+  source TEXT DEFAULT 'ai'
+);
+
+-- Fast lookup for the student-facing quiz picker (approved questions for a
+-- given subject/chapter) and the admin approval queue (pending questions).
+CREATE INDEX IF NOT EXISTS idx_grademe_questions_lookup
+  ON grademe_questions (subject, chapter, status);

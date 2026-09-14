@@ -70,6 +70,28 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: ["is_active"],
   },
+  // Admin-managed list of external learning websites/tools shown in the
+  // "Learning Websites" sidebar section for tutors and students. Replaces
+  // what used to be a hardcoded array in Layout.jsx.
+  // NOTE: this was already registered in worker/entityConfig.js and consumed
+  // by the frontend (Layout.jsx, AdminLearningResources.jsx) but missing from
+  // THIS deployed copy and from schema.sql -- restored here to match, with
+  // the learning_resources table added to schema.sql in the same change.
+  LearningResource: {
+    table: "learning_resources",
+    columns: ["title", "url", "display_order", "is_active"],
+    arrayFields: [],
+    boolFields: ["is_active"],
+  },
+  // Self-grade practice questions for "GradeMe". AI-drafted from SchoolBook's
+  // ingested NCERT content and held as status="pending" until an admin
+  // approves them (status="approved") -- see grademe.js.
+  GradeMeQuestion: {
+    table: "grademe_questions",
+    columns: ["subject", "chapter", "chapter_title", "question", "options", "correct_index", "explanation", "difficulty", "status", "source"],
+    arrayFields: ["options"],
+    boolFields: [],
+  },
   MockTest: {
     table: "mock_tests",
     columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions"],
@@ -171,7 +193,10 @@ export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"])
 // Financial-record entities: only admins may create/update/delete these,
 // regardless of who's logged in. (List/read still just requires login,
 // same as every other non-public entity.)
-export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense"]);
+// GradeMeQuestion: only admins can create (trigger AI drafting) or update
+// (approve/reject/edit) -- students only ever read approved rows via the
+// generic filter route, which just requires being logged in.
+export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "GradeMeQuestion"]);
 
 // NOTE: base44's original per-entity read/write permission rules lived in the base44
 // dashboard and were NOT included in the code export, so these lists are a reasonable
