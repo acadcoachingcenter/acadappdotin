@@ -634,6 +634,15 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
+          title: "Log Topics Covered",
+          url:
+            createPageUrl(
+              "TopicLog"
+            ),
+          icon: ClipboardList,
+        },
+
+        {
           title: "Online Classroom",
           url:
             createPageUrl(
@@ -787,6 +796,15 @@ export default function Layout({ children, currentPageName }) {
               "GradeMe"
             ),
           icon: Sparkles,
+        },
+
+        {
+          title: "Log Topics Covered",
+          url:
+            createPageUrl(
+              "TopicLog"
+            ),
+          icon: ClipboardList,
         },
 
         {

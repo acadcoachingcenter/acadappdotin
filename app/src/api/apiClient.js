@@ -92,6 +92,7 @@ const ENTITY_NAMES = [
   "SubjectClassroom",
   "Submission",
   "Topic",
+  "TopicLog",
   "TuitionRequest",
   "TutorInterest",
   "TutorPayment",

@@ -92,6 +92,14 @@ export const ENTITY_CONFIG = {
     arrayFields: ["options"],
     boolFields: [],
   },
+  // Tutor-logged record of what was actually taught, when, in which course --
+  // feeds the weekly test generator so it targets recently-covered material.
+  TopicLog: {
+    table: "topic_logs",
+    columns: ["course_id", "tutor_id", "subject", "chapter", "chapter_title", "class_date", "notes"],
+    arrayFields: [],
+    boolFields: [],
+  },
   MockTest: {
     table: "mock_tests",
     columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions"],

@@ -501,3 +501,28 @@ CREATE TABLE IF NOT EXISTS grademe_questions (
 -- given subject/chapter) and the admin approval queue (pending questions).
 CREATE INDEX IF NOT EXISTS idx_grademe_questions_lookup
   ON grademe_questions (subject, chapter, status);
+
+-- Entity: TopicLog
+-- Tutor-logged record of what was actually taught, when, in which course --
+-- the foundation for targeting weekly test generation at recently-covered
+-- material instead of random chapters. subject/chapter use SchoolBook's
+-- ingested-chapter IDs (same ones GradeMe uses) so this plugs directly into
+-- the existing chapter-context/generation pipeline.
+CREATE TABLE IF NOT EXISTS topic_logs (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  course_id TEXT,
+  tutor_id TEXT,
+  subject TEXT,
+  chapter TEXT,
+  chapter_title TEXT,
+  class_date TEXT,
+  notes TEXT
+);
+
+-- Fast lookup for "what's been covered in this course in the last N days" --
+-- the query the weekly generator will run.
+CREATE INDEX IF NOT EXISTS idx_topic_logs_course_date
+  ON topic_logs (course_id, class_date);
