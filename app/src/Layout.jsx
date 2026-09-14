@@ -616,6 +616,15 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
+          title: "GradeMe Questions",
+          url:
+            createPageUrl(
+              "AdminGradeMe"
+            ),
+          icon: FileQuestion,
+        },
+
+        {
           title: "Online Classroom",
           url:
             createPageUrl(
