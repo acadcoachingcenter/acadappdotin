@@ -157,6 +157,21 @@ export async function googleCallback(
       env.APP_URL;
   }
 
+  // redirectAfter can be a bare path like "/BecomeHomeTutor?mode=home" --
+  // whatever the frontend passed as ?redirect= when starting login. A bare
+  // path in a Location header gets resolved by the browser against the
+  // CURRENT origin, which at this point is api.acadapp.in (this callback's
+  // own domain), not the app itself -- sending the user to a 404 on the
+  // API Worker instead of the actual page. Force it to always be absolute,
+  // on the app's own domain, before it's ever used as a redirect target.
+  if (
+    !redirectAfter.startsWith("http://") &&
+    !redirectAfter.startsWith("https://")
+  ) {
+    redirectAfter =
+      `${env.APP_URL}${redirectAfter.startsWith("/") ? "" : "/"}${redirectAfter}`;
+  }
+
 
   if (!code) {
     return Response.redirect(
