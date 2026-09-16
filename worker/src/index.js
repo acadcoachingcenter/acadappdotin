@@ -41,6 +41,12 @@ import {
 } from "./grademe.js";
 
 import {
+  generateDraft,
+  submitFeedback,
+  listSkills,
+} from "./marketing.js";
+
+import {
   handleUpload,
   serveFile,
 } from "./upload.js";
@@ -801,6 +807,200 @@ app.post(
     }
   }
 );
+
+/*
+ * ---------- Marketing Skill Engine ----------
+ *
+ * Self-improving content assistant for ACAD's own marketing/
+ * communication messages (batch promos, fee reminders, admission
+ * drives, festival greetings, re-engagement, review requests).
+ * Admin-only: these drafts go out to parents/students under
+ * ACAD's name.
+ */
+
+
+/*
+ * Generate a content draft.
+ */
+app.post(
+  "/api/marketing/generate",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const result =
+        await generateDraft(
+          c.env,
+          await c.req.json()
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Submit feedback on a draft (accepted / edited / rejected) --
+ * this is the training signal that grows the skills table.
+ */
+app.post(
+  "/api/marketing/feedback",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const result =
+        await submitFeedback(
+          c.env,
+          await c.req.json()
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * List learned skills, optionally filtered by content type.
+ */
+app.get(
+  "/api/marketing/skills",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const contentType =
+        c.req.query("contentType");
+
+      return c.json(
+        await listSkills(
+          c.env,
+          { contentType }
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
 
 
 /*

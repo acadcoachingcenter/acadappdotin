@@ -16,6 +16,7 @@ import TutorSubscription from './pages/TutorSubscription';
 import AdminHomeTutorApproval from './pages/AdminHomeTutorApproval';
 import OnlineBooks from './pages/OnlineBooks';
 import AdminBookApprovals from './pages/AdminBookApprovals';
+import MarketingSkillPanel from './pages/MarketingSkillPanel';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -128,6 +129,14 @@ const AuthenticatedApp = () => {
         element={
           <LayoutWrapper currentPageName="Book Approvals">
             <AdminBookApprovals />
+          </LayoutWrapper>
+        } 
+      />
+      <Route 
+        path="/MarketingSkillPanel" 
+        element={
+          <LayoutWrapper currentPageName="Marketing Assistant">
+            <MarketingSkillPanel />
           </LayoutWrapper>
         } 
       />
