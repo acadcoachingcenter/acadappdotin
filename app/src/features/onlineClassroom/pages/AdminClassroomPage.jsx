@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List } from "lucide-react";
+import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List, MessageCircle } from "lucide-react";
 import {
   createClass,
   decodeClassMeta,
@@ -54,6 +54,21 @@ function formatTime(time) {
   const [hour, minute] = time.split(":").map(Number);
   const h = hour % 12 || 12;
   return `${h}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+// Manual fallback while our WhatsApp templates are pending Meta's approval
+// (business-initiated automated sends require an approved template - this
+// doesn't, since a human taps Send themselves in WhatsApp). Same message
+// content as the automated template, just pre-filled instead of sent via
+// the API. Safe to keep around permanently too, as a backup for anyone
+// whose number didn't get an automated message for any reason.
+function buildWhatsAppLink(c, attendee) {
+  if (!attendee.phone) return null;
+  const text =
+    `Hi ${attendee.name}, your online class for the subject - ${c.subject} will be conducted ` +
+    `between ${formatTime(c.schedule?.startTime)} to ${formatTime(c.schedule?.endTime)} today. ` +
+    `Join using the following link ${c.meetUrl || "(not generated yet)"} now`;
+  return `https://wa.me/${attendee.phone}?text=${encodeURIComponent(text)}`;
 }
 
 function iso(date, time) {
@@ -738,6 +753,31 @@ export default function AdminClassroomPage({ user }) {
                           {c.meetUrl || "Not generated yet — click Google Calendar"}
                         </span>
                       </div>
+
+                      {c.attendees?.some((a) => a.phone) && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-slate-500">
+                            Send manually (while templates are pending):
+                          </span>
+                          {c.attendees
+                            .filter((a) => a.phone)
+                            .map((a) => {
+                              const link = buildWhatsAppLink(c, a);
+                              return (
+                                <a
+                                  key={a.id || a.email}
+                                  href={link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
+                                >
+                                  <MessageCircle size={12} />
+                                  {a.name || a.role}
+                                </a>
+                              );
+                            })}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
