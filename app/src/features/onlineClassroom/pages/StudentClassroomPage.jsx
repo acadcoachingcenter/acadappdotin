@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, CalendarDays, LayoutGrid, List } from "lucide-react";
+import { ExternalLink, CalendarDays, LayoutGrid, List, BookOpen } from "lucide-react";
 import { classStatus, formatClassTime, listClassesForUser } from "@/lib/classroomApi";
 import WeeklyTimetable from "../components/WeeklyTimetable";
 import WhiteboardButton from "../components/WhiteboardButton";
@@ -97,6 +97,16 @@ export default function StudentClassroomPage({ user }) {
                   <WhiteboardButton classItem={c} role="student" user={user} size="sm" />
                 </div>
               </div>
+
+              {c.coveredPortions && (
+                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                  <p className="mb-1 flex items-center gap-1.5 font-medium text-slate-900">
+                    <BookOpen size={14} />
+                    Covered in this class
+                  </p>
+                  <p className="text-slate-600">{c.coveredPortions}</p>
+                </div>
+              )}
             </div>
           );
         })

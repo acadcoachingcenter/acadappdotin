@@ -738,6 +738,12 @@ export default function AdminClassroomPage({ user }) {
                           {c.meetUrl || "Not generated yet — click Google Calendar"}
                         </span>
                       </div>
+
+                      {c.coveredPortions && (
+                        <div className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-slate-700">
+                          <strong>Covered:</strong> {c.coveredPortions}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

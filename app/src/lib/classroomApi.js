@@ -91,6 +91,7 @@ function normalizeClass(row) {
     // wrote back after generating a Calendar event, or empty until the
     // class has been synced at least once.
     meetUrl: row.meeting_link || "",
+    coveredPortions: row.covered_portions || "",
     schedule: {
       day:
         meta.day ||
@@ -254,6 +255,17 @@ export async function updateClass(classId, classData) {
     attendees,
   });
 
+  return normalizeClass(row);
+}
+
+// Tutor's class log-book entry - what was actually covered in this
+// session. Kept as a separate, minimal update (not full updateClass) so
+// logging a class doesn't require rebuilding the whole tutor/students
+// payload each time.
+export async function logCoveredPortions(classId, text) {
+  const row = await apiClient.entities.LiveClass.update(classId, {
+    covered_portions: text,
+  });
   return normalizeClass(row);
 }
 

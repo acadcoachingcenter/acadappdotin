@@ -57,7 +57,7 @@ export const ENTITY_CONFIG = {
   },
   LiveClass: {
     table: "live_classes",
-    columns: ["course_id", "tutor_id", "title", "description", "scheduled_date", "duration_minutes", "meeting_link", "recording_url", "whiteboard_data", "status", "attendees", "materials"],
+    columns: ["course_id", "tutor_id", "title", "description", "scheduled_date", "duration_minutes", "meeting_link", "recording_url", "whiteboard_data", "status", "attendees", "materials", "covered_portions"],
     arrayFields: ["attendees", "materials"],
     boolFields: [],
   },
@@ -78,31 +78,6 @@ export const ENTITY_CONFIG = {
     columns: ["title", "url", "display_order", "is_active"],
     arrayFields: [],
     boolFields: ["is_active"],
-  },
-  // Self-grade practice questions for "GradeMe". AI-drafted from SchoolBook's
-  // ingested NCERT content and held as status="pending" until an admin
-  // approves them (status="approved") -- see grademe.js.
-  GradeMeQuestion: {
-    table: "grademe_questions",
-    columns: ["subject", "chapter", "chapter_title", "question", "options", "correct_index", "explanation", "difficulty", "status", "source"],
-    arrayFields: ["options"],
-    boolFields: [],
-  },
-  // Tutor-logged record of what was actually taught, when, in which course --
-  // feeds the weekly test generator so it targets recently-covered material.
-  TopicLog: {
-    table: "topic_logs",
-    columns: ["course_id", "tutor_id", "subject", "chapter", "chapter_title", "class_date", "notes"],
-    arrayFields: [],
-    boolFields: [],
-  },
-  // AI-drafted weekly test for one course, built from its recent TopicLog
-  // entries. status="pending" until an admin approves it for students.
-  WeeklyPaper: {
-    table: "weekly_papers",
-    columns: ["course_id", "exam_type", "title", "topics_covered", "total_questions", "duration_minutes", "marks_correct", "marks_wrong", "questions", "status", "source"],
-    arrayFields: ["topics_covered", "questions"],
-    boolFields: [],
   },
   MockTest: {
     table: "mock_tests",
@@ -197,7 +172,7 @@ export const ENTITY_CONFIG = {
 };
 
 // Entities anyone can READ without logging in (public catalog / marketing pages)
-export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel", "Topic", "Review", "MockTest", "LearningResource"]);
+export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel", "Topic", "Review", "MockTest"]);
 
 // Entities anyone can CREATE without logging in (public intake forms)
 export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"]);
@@ -205,10 +180,7 @@ export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"])
 // Financial-record entities: only admins may create/update/delete these,
 // regardless of who's logged in. (List/read still just requires login,
 // same as every other non-public entity.)
-// GradeMeQuestion: only admins can create (trigger AI drafting) or update
-// (approve/reject/edit) -- students only ever read approved rows via the
-// generic filter route, which just requires being logged in.
-export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "GradeMeQuestion", "WeeklyPaper"]);
+export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense"]);
 
 // NOTE: base44's original per-entity read/write permission rules lived in the base44
 // dashboard and were NOT included in the code export, so these lists are a reasonable

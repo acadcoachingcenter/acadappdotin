@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, CalendarDays, LayoutGrid, List } from "lucide-react";
-import { classStatus, formatClassTime, listClassesForUser } from "@/lib/classroomApi";
+import { ExternalLink, CalendarDays, LayoutGrid, List, BookOpen, Save } from "lucide-react";
+import { classStatus, formatClassTime, listClassesForUser, logCoveredPortions } from "@/lib/classroomApi";
 import WeeklyTimetable from "../components/WeeklyTimetable";
 import WhiteboardButton from "../components/WhiteboardButton";
 
@@ -8,10 +8,27 @@ export default function TutorClassroomPage({ user }) {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("list");
+  const [logDrafts, setLogDrafts] = useState({});
+  const [savingLogId, setSavingLogId] = useState(null);
 
   useEffect(() => {
     listClassesForUser(user).then(setClasses).finally(() => setLoading(false));
   }, [user]);
+
+  const getLogDraft = (c) => (logDrafts[c.id] !== undefined ? logDrafts[c.id] : c.coveredPortions || "");
+
+  const handleSaveLog = async (c) => {
+    setSavingLogId(c.id);
+    try {
+      const updated = await logCoveredPortions(c.id, getLogDraft(c).trim());
+      setClasses((prev) => prev.map((cls) => (cls.id === c.id ? updated : cls)));
+    } catch (error) {
+      console.error("Error saving covered portions:", error);
+      alert("Failed to save: " + (error.message || "Unknown error"));
+    } finally {
+      setSavingLogId(null);
+    }
+  };
 
   if (loading) return <p className="text-slate-600">Loading your classes…</p>;
 
@@ -112,6 +129,30 @@ export default function TutorClassroomPage({ user }) {
                   You'll get an email and WhatsApp notification once it's sent.
                 </div>
               )}
+
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-900">
+                  <BookOpen size={15} />
+                  Class Log — portions covered
+                </label>
+                <textarea
+                  value={getLogDraft(c)}
+                  onChange={(e) => setLogDrafts((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                  rows={2}
+                  placeholder="What did you cover in this class? e.g. Chapter 4 - Photosynthesis, worked through practice problems 1-10"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+                {getLogDraft(c) !== (c.coveredPortions || "") && (
+                  <button
+                    onClick={() => handleSaveLog(c)}
+                    disabled={savingLogId === c.id}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    <Save size={13} />
+                    {savingLogId === c.id ? "Saving…" : "Save Log"}
+                  </button>
+                )}
+              </div>
             </div>
           );
         })
