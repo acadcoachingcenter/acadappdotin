@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List, MessageCircle } from "lucide-react";
+import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List, MessageCircle, Copy } from "lucide-react";
 import {
   createClass,
   decodeClassMeta,
@@ -64,11 +64,48 @@ function formatTime(time) {
 // whose number didn't get an automated message for any reason.
 function buildWhatsAppLink(c, attendee) {
   if (!attendee.phone) return null;
-  const text =
-    `Hi ${attendee.name}, your online class for the subject - ${c.subject} will be conducted ` +
-    `between ${formatTime(c.schedule?.startTime)} to ${formatTime(c.schedule?.endTime)} today. ` +
-    `Join using the following link ${c.meetUrl || "(not generated yet)"} now`;
+  const text = buildCopyText(c, attendee.name);
   return `https://wa.me/${attendee.phone}?text=${encodeURIComponent(text)}`;
+}
+
+// Same content as buildWhatsAppLink, but as plain text for a "Copy" button
+// instead of a wa.me link - wa.me only works smoothly with WhatsApp Web
+// (needs that browser tab already logged in via QR code) and opens a new
+// tab per recipient. Copying instead lets the admin paste into whichever
+// WhatsApp they already have open (phone app, desktop app, anything) and
+// pick the contact themselves - one copy, paste anywhere, no tab-switching.
+function formatCalendarStyleTime(startTime, endTime) {
+  const fmt = (t) => {
+    const [h, m] = t.split(":").map(Number);
+    const hour12 = h % 12 || 12;
+    const period = h >= 12 ? "pm" : "am";
+    return { text: `${hour12}:${String(m).padStart(2, "0")}`, period };
+  };
+  const start = fmt(startTime);
+  const end = fmt(endTime);
+  // Google Calendar shows the am/pm suffix once if both times share it,
+  // e.g. "12:30 – 1:30pm" rather than "12:30pm – 1:30pm".
+  return start.period === end.period
+    ? `${start.text} – ${end.text}${end.period}`
+    : `${start.text}${start.period} – ${end.text}${end.period}`;
+}
+
+function buildCopyText(c, attendeeName) {
+  const dateObj = c.schedule?.date ? new Date(`${c.schedule.date}T00:00:00+05:30`) : null;
+  const dateLine = dateObj
+    ? dateObj.toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric" })
+    : c.schedule?.date || "";
+  const timeLine = formatCalendarStyleTime(c.schedule?.startTime, c.schedule?.endTime);
+
+  return (
+    `Hello ${attendeeName}, your ACAD online class for the subject ${c.subject} - batch ${c.batchName} ` +
+    `will be conducted as per the following schedule,\n` +
+    `${dateLine} · ${timeLine}\n` +
+    `Time zone: Asia/Kolkata\n` +
+    `Google Meet joining info\n` +
+    `Video call link: ${c.meetUrl || "(not generated yet)"}\n\n` +
+    `please join now by clicking the link`
+  );
 }
 
 function iso(date, time) {
@@ -135,6 +172,20 @@ export default function AdminClassroomPage({ user }) {
   const [syncingAll, setSyncingAll] = useState(false);
   const [message, setMessage] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
+  const [copiedFor, setCopiedFor] = useState(null);
+
+  const handleCopyText = async (c, attendee) => {
+    const key = `${c.id}-${attendee.id || attendee.email}`;
+    try {
+      await navigator.clipboard.writeText(buildCopyText(c, attendee.name));
+      setCopiedFor(key);
+      setTimeout(() => setCopiedFor((cur) => (cur === key ? null : cur)), 1500);
+    } catch (error) {
+      console.error("Clipboard copy failed:", error);
+      alert("Couldn't copy automatically - your browser may be blocking clipboard access.");
+    }
+  };
+
   const [view, setView] = useState("list");
 
   async function refresh() {
@@ -763,17 +814,30 @@ export default function AdminClassroomPage({ user }) {
                             .filter((a) => a.phone)
                             .map((a) => {
                               const link = buildWhatsAppLink(c, a);
+                              const copyKey = `${c.id}-${a.id || a.email}`;
                               return (
-                                <a
+                                <div
                                   key={a.id || a.email}
-                                  href={link}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
+                                  className="inline-flex items-center overflow-hidden rounded-full border border-green-300 bg-green-50 text-xs font-medium text-green-700"
                                 >
-                                  <MessageCircle size={12} />
-                                  {a.name || a.role}
-                                </a>
+                                  <button
+                                    onClick={() => handleCopyText(c, a)}
+                                    className="flex items-center gap-1 px-2.5 py-1 hover:bg-green-100"
+                                    title="Copy message text - paste into WhatsApp yourself"
+                                  >
+                                    <Copy size={12} />
+                                    {copiedFor === copyKey ? "Copied!" : a.name || a.role}
+                                  </button>
+                                  <a
+                                    href={link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="border-l border-green-300 px-2 py-1 hover:bg-green-100"
+                                    title="Open in WhatsApp Web with text pre-filled"
+                                  >
+                                    <MessageCircle size={12} />
+                                  </a>
+                                </div>
                               );
                             })}
                         </div>
