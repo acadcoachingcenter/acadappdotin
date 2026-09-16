@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,6 +7,12 @@ import {
   Pencil,
   ThumbsDown,
   Loader2,
+  Copy,
+  Check,
+  Trash2,
+  Image as ImageIcon,
+  Settings,
+  X,
 } from "lucide-react";
 
 const CONTENT_TYPES = [
@@ -18,6 +24,204 @@ const CONTENT_TYPES = [
   { value: "review_request", label: "Review request" },
 ];
 
+function CopyButton({ text, small }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (error) {
+      console.error("Copy failed:", error);
+      alert("Couldn't copy automatically — please select and copy the text manually.");
+    }
+  }
+
+  return (
+    <Button
+      onClick={handleCopy}
+      variant="outline"
+      size={small ? "sm" : "default"}
+    >
+      {copied ? (
+        <>
+          <Check className="w-4 h-4 mr-2 text-green-600" />
+          Copied
+        </>
+      ) : (
+        <>
+          <Copy className="w-4 h-4 mr-2" />
+          Copy Text
+        </>
+      )}
+    </Button>
+  );
+}
+
+/**
+ * Canvas-based branded graphic: approved text over a template with
+ * the ACAD logo (if configured) and a contact-info footer. Renders
+ * client-side, no image-generation API needed.
+ */
+function GraphicModal({ item, brand, onClose }) {
+  const canvasRef = useRef(null);
+  const [downloadUrl, setDownloadUrl] = useState(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = 1080;
+    const H = 1080;
+    canvas.width = W;
+    canvas.height = H;
+
+    function draw(logoImg) {
+      // Background gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, "#0d47a1");
+      grad.addColorStop(1, "#1565C0");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      // White content card
+      const pad = 60;
+      ctx.fillStyle = "#ffffff";
+      roundRect(ctx, pad, pad, W - pad * 2, H - pad * 2, 28);
+      ctx.fill();
+
+      // Logo (top center) or ACAD wordmark fallback
+      let contentTop = pad + 70;
+      if (logoImg) {
+        const logoH = 90;
+        const logoW = (logoImg.width / logoImg.height) * logoH;
+        ctx.drawImage(logoImg, W / 2 - logoW / 2, contentTop, logoW, logoH);
+        contentTop += logoH + 30;
+      } else {
+        ctx.fillStyle = "#1565C0";
+        ctx.font = "bold 56px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(brand?.business_name || "ACAD", W / 2, contentTop + 50);
+        contentTop += 100;
+      }
+
+      // Message text, word-wrapped
+      ctx.fillStyle = "#1e293b";
+      ctx.font = "500 40px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      const maxWidth = W - pad * 2 - 80;
+      const lines = wrapText(ctx, item.final_text || item.draft_text, maxWidth);
+      const lineHeight = 54;
+      let textY = contentTop + 80;
+      const textBlockHeight = lines.length * lineHeight;
+      // vertically center remaining space between contentTop and footer
+      const footerTop = H - pad - 160;
+      const availableHeight = footerTop - contentTop;
+      textY = contentTop + Math.max(0, (availableHeight - textBlockHeight) / 2) + lineHeight;
+      lines.forEach((line) => {
+        ctx.fillText(line, W / 2, textY);
+        textY += lineHeight;
+      });
+
+      // Footer divider
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.moveTo(pad + 60, footerTop);
+      ctx.lineTo(W - pad - 60, footerTop);
+      ctx.stroke();
+
+      // Contact info footer
+      ctx.font = "400 26px system-ui, sans-serif";
+      ctx.fillStyle = "#475569";
+      let footerY = footerTop + 44;
+      const contactLines = [
+        brand?.contact_phone ? `📞 ${brand.contact_phone}` : null,
+        brand?.contact_email ? `✉️ ${brand.contact_email}` : null,
+        brand?.contact_website ? `🌐 ${brand.contact_website}` : null,
+        brand?.contact_address || null,
+      ].filter(Boolean);
+      contactLines.forEach((line) => {
+        ctx.fillText(line, W / 2, footerY);
+        footerY += 36;
+      });
+
+      setDownloadUrl(canvas.toDataURL("image/png"));
+    }
+
+    if (brand?.logo_url) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => draw(img);
+      img.onerror = () => draw(null);
+      img.src = brand.logo_url;
+    } else {
+      draw(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, brand]);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl p-6 max-w-lg w-full">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-900">Generated graphic</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <canvas
+          ref={canvasRef}
+          className="w-full rounded-lg border border-slate-200"
+          style={{ aspectRatio: "1 / 1" }}
+        />
+        <div className="flex gap-3 mt-4">
+          <Button
+            asChild={!!downloadUrl}
+            disabled={!downloadUrl}
+            className="bg-[#1565C0] hover:bg-[#0d47a1] flex-1"
+          >
+            {downloadUrl ? (
+              <a href={downloadUrl} download={`acad-${item.content_type}-${item.id}.png`}>
+                Download PNG
+              </a>
+            ) : (
+              <span>Rendering…</span>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function wrapText(ctx, text, maxWidth) {
+  const words = (text || "").split(/\s+/);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 export default function MarketingSkillPanel() {
   const [contentType, setContentType] = useState("batch_promo");
   const [channel, setChannel] = useState("whatsapp");
@@ -28,27 +232,90 @@ export default function MarketingSkillPanel() {
   const [loading, setLoading] = useState(false);
   const [lastLearned, setLastLearned] = useState(null);
   const [skills, setSkills] = useState([]);
+  const [approvedDrafts, setApprovedDrafts] = useState([]);
+  const [brand, setBrand] = useState(null);
+  const [showBrandSettings, setShowBrandSettings] = useState(false);
+  const [brandForm, setBrandForm] = useState(null);
+  const [graphicItem, setGraphicItem] = useState(null);
 
   const API_BASE = import.meta.env.VITE_API_BASE;
 
   useEffect(() => {
     loadSkills();
+    loadApprovedDrafts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentType]);
 
+  useEffect(() => {
+    loadBrandProfile();
+  }, []);
+
+  async function apiGet(path) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    return res.json();
+  }
+
+  async function apiSend(path, method, body) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return res.json();
+  }
+
   async function loadSkills() {
     try {
-      const res = await fetch(
-        `${API_BASE}/api/marketing/skills?contentType=${contentType}`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: { Accept: "application/json" },
-        }
-      );
-      if (res.ok) setSkills(await res.json());
+      setSkills(await apiGet(`/api/marketing/skills?contentType=${contentType}`));
     } catch (error) {
       console.error("Error fetching skills:", error);
+    }
+  }
+
+  async function loadApprovedDrafts() {
+    try {
+      setApprovedDrafts(await apiGet(`/api/marketing/drafts?contentType=${contentType}`));
+    } catch (error) {
+      console.error("Error fetching approved drafts:", error);
+    }
+  }
+
+  async function loadBrandProfile() {
+    try {
+      const data = await apiGet(`/api/marketing/brand-profile`);
+      setBrand(data);
+      setBrandForm(data);
+    } catch (error) {
+      console.error("Error fetching brand profile:", error);
+    }
+  }
+
+  async function handleSaveBrand() {
+    setLoading(true);
+    try {
+      const updated = await apiSend("/api/marketing/brand-profile", "PUT", {
+        contact_phone: brandForm.contact_phone,
+        contact_email: brandForm.contact_email,
+        contact_website: brandForm.contact_website,
+        contact_address: brandForm.contact_address,
+        logo_url: brandForm.logo_url,
+      });
+      setBrand(updated);
+      setShowBrandSettings(false);
+    } catch (error) {
+      console.error("Error saving brand profile:", error);
+      alert("Couldn't save contact settings: " + error.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -58,16 +325,11 @@ export default function MarketingSkillPanel() {
     setDraft(null);
     setLastLearned(null);
     try {
-      const res = await fetch(`${API_BASE}/api/marketing/generate`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ contentType, channel, requestText }),
+      const data = await apiSend("/api/marketing/generate", "POST", {
+        contentType,
+        channel,
+        requestText,
       });
-      const data = await res.json();
       if (data.error) throw new Error(data.error);
       setDraft(data);
       setEditedText(data.draftText);
@@ -84,16 +346,11 @@ export default function MarketingSkillPanel() {
     const finalText = status === "edited" ? editedText : draft.draftText;
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/marketing/feedback`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ draftId: draft.draftId, status, finalText }),
+      const data = await apiSend("/api/marketing/feedback", "POST", {
+        draftId: draft.draftId,
+        status,
+        finalText,
       });
-      const data = await res.json();
       if (status === "edited" && data.learnedSkill) {
         setLastLearned(data.learnedSkill);
       }
@@ -101,11 +358,25 @@ export default function MarketingSkillPanel() {
       setRequestText("");
       setIsEditing(false);
       loadSkills();
+      if (status === "accepted" || status === "edited") {
+        loadApprovedDrafts();
+      }
     } catch (error) {
       console.error("Error submitting feedback:", error);
       alert("Feedback failed: " + error.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDeleteApproved(id) {
+    if (!window.confirm("Delete this approved item? This can't be undone.")) return;
+    try {
+      await apiSend(`/api/marketing/drafts/${id}`, "DELETE");
+      setApprovedDrafts((prev) => prev.filter((d) => d.id !== id));
+    } catch (error) {
+      console.error("Error deleting draft:", error);
+      alert("Delete failed: " + error.message);
     }
   }
 
@@ -120,11 +391,75 @@ export default function MarketingSkillPanel() {
             Gets better at ACAD's voice every time you edit or reject a draft.
           </p>
         </div>
-        <div className="px-3 py-1 bg-teal-600 text-white rounded text-sm font-medium">
-          <Sparkles className="w-4 h-4 mr-1 inline" />
-          SELF-IMPROVING
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowBrandSettings((v) => !v)}
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Contact settings
+          </Button>
+          <div className="px-3 py-1 bg-teal-600 text-white rounded text-sm font-medium">
+            <Sparkles className="w-4 h-4 mr-1 inline" />
+            SELF-IMPROVING
+          </div>
         </div>
       </div>
+
+      {showBrandSettings && brandForm && (
+        <Card className="border-2 border-teal-200">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Contact details for generated graphics
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-slate-500">
+              Shown in the footer of every generated graphic. Set once, reused everywhere.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <input
+                value={brandForm.contact_phone || ""}
+                onChange={(e) => setBrandForm({ ...brandForm, contact_phone: e.target.value })}
+                placeholder="Phone, e.g. +91 9790818436"
+                className="border border-slate-200 rounded-md px-3 py-2 text-sm"
+              />
+              <input
+                value={brandForm.contact_email || ""}
+                onChange={(e) => setBrandForm({ ...brandForm, contact_email: e.target.value })}
+                placeholder="Email"
+                className="border border-slate-200 rounded-md px-3 py-2 text-sm"
+              />
+              <input
+                value={brandForm.contact_website || ""}
+                onChange={(e) => setBrandForm({ ...brandForm, contact_website: e.target.value })}
+                placeholder="Website, e.g. acadapp.in"
+                className="border border-slate-200 rounded-md px-3 py-2 text-sm"
+              />
+              <input
+                value={brandForm.contact_address || ""}
+                onChange={(e) => setBrandForm({ ...brandForm, contact_address: e.target.value })}
+                placeholder="Address"
+                className="border border-slate-200 rounded-md px-3 py-2 text-sm"
+              />
+              <input
+                value={brandForm.logo_url || ""}
+                onChange={(e) => setBrandForm({ ...brandForm, logo_url: e.target.value })}
+                placeholder="Logo image URL (optional — shown top-center on graphics)"
+                className="border border-slate-200 rounded-md px-3 py-2 text-sm sm:col-span-2"
+              />
+            </div>
+            <Button
+              onClick={handleSaveBrand}
+              disabled={loading}
+              className="bg-teal-600 hover:bg-teal-700"
+            >
+              Save contact settings
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -211,6 +546,7 @@ export default function MarketingSkillPanel() {
             )}
 
             <div className="flex flex-wrap gap-3">
+              <CopyButton text={isEditing ? editedText : draft.draftText} />
               {!isEditing ? (
                 <>
                   <Button
@@ -219,7 +555,7 @@ export default function MarketingSkillPanel() {
                     className="bg-green-600 hover:bg-green-700"
                   >
                     <ThumbsUp className="w-4 h-4 mr-2" />
-                    Accept &amp; send
+                    Approve
                   </Button>
                   <Button
                     onClick={() => setIsEditing(true)}
@@ -259,6 +595,55 @@ export default function MarketingSkillPanel() {
         </div>
       )}
 
+      {approvedDrafts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Approved Content</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {approvedDrafts.map((item) => (
+              <div
+                key={item.id}
+                className="border border-slate-200 rounded-lg p-4 space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-500 uppercase">
+                    {CONTENT_TYPES.find((c) => c.value === item.content_type)?.label || item.content_type}
+                    {" · "}{item.channel}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {new Date(item.reviewed_at || item.created_at).toLocaleDateString("en-IN")}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-800 whitespace-pre-wrap">
+                  {item.final_text || item.draft_text}
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <CopyButton text={item.final_text || item.draft_text} small />
+                  <Button
+                    onClick={() => setGraphicItem(item)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    Generate graphic
+                  </Button>
+                  <Button
+                    onClick={() => handleDeleteApproved(item.id)}
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {skills.length > 0 && (
         <Card>
           <CardHeader>
@@ -279,6 +664,14 @@ export default function MarketingSkillPanel() {
             </ul>
           </CardContent>
         </Card>
+      )}
+
+      {graphicItem && (
+        <GraphicModal
+          item={graphicItem}
+          brand={brand}
+          onClose={() => setGraphicItem(null)}
+        />
       )}
     </div>
   );

@@ -1,16 +1,20 @@
 /**
- * ACAD Marketing Skill Engine — Worker logic (v1)
+ * ACAD Marketing Skill Engine — Worker logic (v2)
  *
  * Framework-agnostic functions. Wire them into your existing Worker's
- * fetch handler / router (plain Workers routing or Hono — whichever
- * acad-api already uses). Expects:
+ * fetch handler / router. Expects:
  *   - env.DB        → D1 database binding
  *   - env.GROQ_API_KEY → same key already used by the Doubt Solver
+ *   - env.GROQ_MODEL   → e.g. "openai/gpt-oss-120b"
  *
- * Three endpoints to expose:
- *   POST /api/marketing/generate   → generateDraft()
- *   POST /api/marketing/feedback   → submitFeedback()
- *   GET  /api/marketing/skills     → listSkills()  (for the admin panel)
+ * Endpoints to expose (see ROUTER_SNIPPET_V2.js):
+ *   POST   /api/marketing/generate       → generateDraft()
+ *   POST   /api/marketing/feedback       → submitFeedback()
+ *   GET    /api/marketing/skills         → listSkills()
+ *   GET    /api/marketing/drafts         → listApprovedDrafts()   (NEW)
+ *   DELETE /api/marketing/drafts/:id     → deleteDraft()          (NEW)
+ *   GET    /api/marketing/brand-profile  → getBrandProfile()      (NEW)
+ *   PUT    /api/marketing/brand-profile  → updateBrandProfile()   (NEW)
  */
 
 const CONTENT_TYPE_GUIDANCE = {
@@ -23,12 +27,8 @@ const CONTENT_TYPE_GUIDANCE = {
 };
 
 /**
- * Very deliberately NOT a vector search. ACAD's stack is D1, no
- * embeddings store exists yet, and at the scale of one tenant's skill
- * table (dozens, not thousands, of rows) a keyword-overlap score is
- * plenty. Swap this for Cloudflare Vectorize if/when skill volume or
- * retrieval quality actually demands it — don't add the dependency
- * before the data justifies it.
+ * Keyword-overlap + reliability score retrieval. See v1 notes: no
+ * vector DB until skill volume actually justifies one.
  */
 async function retrieveSkills(env, { contentType, requestText }) {
   const { results } = await env.DB.prepare(
@@ -42,8 +42,6 @@ async function retrieveSkills(env, { contentType, requestText }) {
   const scored = results.map((skill) => {
     const tags = skill.trigger_tags.toLowerCase().split(',').map((t) => t.trim());
     const overlap = tags.filter((t) => requestWords.has(t)).length;
-    // Skills with a track record of working are worth surfacing even
-    // without an exact keyword hit; skills that keep failing sink.
     const reliability = skill.success_count - skill.fail_count;
     return { skill, score: overlap * 3 + reliability * 0.5 };
   });
@@ -117,19 +115,15 @@ async function generateDraft(env, payload) {
     draftId: draftRow[0].id,
     requestId,
     draftText,
+    contentType,
     skillsApplied: skills.map((s) => s.procedure_text),
   };
 }
 
 /**
- * The core of the self-improving loop. Staff review the draft in the
- * admin panel and respond one of three ways — that response IS the
- * training signal:
- *   - accepted: sent as-is → reinforce the skills that were used
- *   - edited:   sent with changes → the diff between draft and final
- *               is distilled into a NEW skill (or strengthens an
- *               existing similar one)
- *   - rejected: not sent → the skills used get a fail mark
+ * accepted/edited/rejected feedback. accepted and edited both leave the
+ * draft permanently visible via listApprovedDrafts() until the admin
+ * deletes it — see deleteDraft(). rejected does not appear there.
  */
 async function submitFeedback(env, { draftId, status, finalText, correctionNote }) {
   if (!['accepted', 'edited', 'rejected'].includes(status)) {
@@ -165,11 +159,6 @@ async function submitFeedback(env, { draftId, status, finalText, correctionNote 
   }
 
   // status === 'edited' → distill the correction into a new skill.
-  // v1 keeps this simple and cheap: ask the model to summarize what
-  // changed as one reusable instruction, tagged with request keywords.
-  // This is the piece to make smarter later (e.g. batching several
-  // edits before writing a skill, to avoid overfitting on one-off
-  // phrasing); for now, every correction is a signal worth keeping.
   const request = await env.DB.prepare('SELECT * FROM content_requests WHERE id = ?').bind(draft.request_id).first();
 
   const summarizePrompt = [
@@ -221,4 +210,81 @@ async function listSkills(env, { contentType } = {}) {
   return results;
 }
 
-export { generateDraft, submitFeedback, listSkills, retrieveSkills, CONTENT_TYPE_GUIDANCE };
+/**
+ * NEW (v2): persistent list of approved (accepted or edited) drafts,
+ * joined with their originating request, for the "Approved Content"
+ * panel. Stays until deleteDraft() removes it.
+ */
+async function listApprovedDrafts(env, { contentType } = {}) {
+  const query = contentType
+    ? env.DB.prepare(
+        `SELECT d.id, d.draft_text, d.final_text, d.status, d.reviewed_at, d.created_at,
+                r.content_type, r.channel, r.raw_request
+         FROM content_drafts d
+         JOIN content_requests r ON r.id = d.request_id
+         WHERE d.status IN ('accepted', 'edited') AND r.content_type = ?
+         ORDER BY d.reviewed_at DESC`
+      ).bind(contentType)
+    : env.DB.prepare(
+        `SELECT d.id, d.draft_text, d.final_text, d.status, d.reviewed_at, d.created_at,
+                r.content_type, r.channel, r.raw_request
+         FROM content_drafts d
+         JOIN content_requests r ON r.id = d.request_id
+         WHERE d.status IN ('accepted', 'edited')
+         ORDER BY d.reviewed_at DESC`
+      );
+  const { results } = await query.all();
+  return results;
+}
+
+/**
+ * NEW (v2): manual delete for an approved draft. Admin-only, enforced
+ * at the route level (see ROUTER_SNIPPET_V2.js).
+ */
+async function deleteDraft(env, draftId) {
+  const result = await env.DB.prepare('DELETE FROM content_drafts WHERE id = ?').bind(draftId).run();
+  return { ok: true, deleted: result.meta?.changes > 0 };
+}
+
+/**
+ * NEW (v2): brand_profile read/update, including the contact fields
+ * the graphic generator uses for its footer.
+ */
+async function getBrandProfile(env) {
+  return env.DB.prepare('SELECT * FROM brand_profile WHERE id = 1').first();
+}
+
+async function updateBrandProfile(env, fields) {
+  const allowed = [
+    'business_name', 'tone', 'languages', 'audience_notes', 'key_phrases',
+    'contact_phone', 'contact_email', 'contact_website', 'contact_address', 'logo_url',
+  ];
+  const setClauses = [];
+  const values = [];
+  for (const key of allowed) {
+    if (fields[key] !== undefined) {
+      setClauses.push(`${key} = ?`);
+      values.push(fields[key]);
+    }
+  }
+  if (!setClauses.length) return { error: 'no valid fields to update' };
+
+  setClauses.push(`updated_at = datetime('now')`);
+  await env.DB.prepare(
+    `UPDATE brand_profile SET ${setClauses.join(', ')} WHERE id = 1`
+  ).bind(...values).run();
+
+  return getBrandProfile(env);
+}
+
+export {
+  generateDraft,
+  submitFeedback,
+  listSkills,
+  listApprovedDrafts,
+  deleteDraft,
+  getBrandProfile,
+  updateBrandProfile,
+  retrieveSkills,
+  CONTENT_TYPE_GUIDANCE,
+};

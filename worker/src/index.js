@@ -44,6 +44,10 @@ import {
   generateDraft,
   submitFeedback,
   listSkills,
+  listApprovedDrafts,
+  deleteDraft,
+  getBrandProfile,
+  updateBrandProfile,
 } from "./marketing.js";
 
 import {
@@ -819,6 +823,12 @@ app.post(
  */
 
 
+
+
+
+
+
+
 /*
  * Generate a content draft.
  */
@@ -1001,6 +1011,246 @@ app.get(
   }
 );
 
+/*
+ * List approved (accepted/edited) drafts — the persistent
+ * "Approved Content" panel. Stays until explicitly deleted.
+ */
+app.get(
+  "/api/marketing/drafts",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const contentType =
+        c.req.query("contentType");
+
+      return c.json(
+        await listApprovedDrafts(
+          c.env,
+          { contentType }
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Delete an approved draft -- manual cleanup, admin only.
+ */
+app.delete(
+  "/api/marketing/drafts/:id",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const result =
+        await deleteDraft(
+          c.env,
+          c.req.param("id")
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Get brand profile (tone, contact info, logo url for the
+ * graphic generator).
+ */
+app.get(
+  "/api/marketing/brand-profile",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      return c.json(
+        await getBrandProfile(
+          c.env
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Update brand profile (tone, contact info, logo url).
+ */
+app.put(
+  "/api/marketing/brand-profile",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const result =
+        await updateBrandProfile(
+          c.env,
+          await c.req.json()
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
 
 
 /*
