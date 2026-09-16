@@ -616,39 +616,21 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
-          title: "GradeMe Questions",
-          url:
-            createPageUrl(
-              "AdminGradeMe"
-            ),
-          icon: FileQuestion,
-        },
-
-        {
-          title: "GradeMe",
-          url:
-            createPageUrl(
-              "GradeMe"
-            ),
-          icon: Sparkles,
-        },
-
-        {
-          title: "Log Topics Covered",
-          url:
-            createPageUrl(
-              "TopicLog"
-            ),
-          icon: ClipboardList,
-        },
-
-        {
           title: "Online Classroom",
           url:
             createPageUrl(
               "OnlineClassroom"
             ),
           icon: Video,
+        },
+
+        {
+          title: "Weekly Coverage Report",
+          url:
+            createPageUrl(
+              "AdminWeeklyCoverage"
+            ),
+          icon: BookOpen,
         },
 
         {
@@ -787,24 +769,6 @@ export default function Layout({ children, currentPageName }) {
               "WeeklyMockTest"
             ),
           icon: FileQuestion,
-        },
-
-        {
-          title: "GradeMe",
-          url:
-            createPageUrl(
-              "GradeMe"
-            ),
-          icon: Sparkles,
-        },
-
-        {
-          title: "Log Topics Covered",
-          url:
-            createPageUrl(
-              "TopicLog"
-            ),
-          icon: ClipboardList,
         },
 
         {
@@ -1085,15 +1049,6 @@ export default function Layout({ children, currentPageName }) {
               "WeeklyMockTest"
             ),
           icon: FileQuestion,
-        },
-
-        {
-          title: "GradeMe",
-          url:
-            createPageUrl(
-              "GradeMe"
-            ),
-          icon: Sparkles,
         },
 
         {

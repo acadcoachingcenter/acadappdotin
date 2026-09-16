@@ -51,12 +51,10 @@ import AcademicEssentials from './pages/AcademicEssentials';
 import AdminCourseManagement from './pages/AdminCourseManagement';
 import AdminClassroomLinks from './pages/AdminClassroomLinks';
 import AdminLearningResources from './pages/AdminLearningResources';
+import AdminWeeklyCoverage from './pages/AdminWeeklyCoverage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminEnrollmentManagement from './pages/AdminEnrollmentManagement';
 import AdminEventManagement from './pages/AdminEventManagement';
-import AdminGradeMe from './pages/AdminGradeMe';
-import GradeMe from './pages/GradeMe';
-import TopicLog from './pages/TopicLog';
 import AdminInquiryManagement from './pages/AdminInquiryManagement';
 import AdminTutorManagement from './pages/AdminTutorManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
@@ -95,12 +93,10 @@ export const PAGES = {
     "AdminCourseManagement": AdminCourseManagement,
     "AdminClassroomLinks": AdminClassroomLinks,
     "AdminLearningResources": AdminLearningResources,
+    "AdminWeeklyCoverage": AdminWeeklyCoverage,
     "AdminDashboard": AdminDashboard,
     "AdminEnrollmentManagement": AdminEnrollmentManagement,
     "AdminEventManagement": AdminEventManagement,
-    "AdminGradeMe": AdminGradeMe,
-    "GradeMe": GradeMe,
-    "TopicLog": TopicLog,
     "AdminInquiryManagement": AdminInquiryManagement,
     "AdminTutorManagement": AdminTutorManagement,
     "AttendanceManagement": AttendanceManagement,
