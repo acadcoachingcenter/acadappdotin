@@ -79,6 +79,16 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: ["is_active"],
   },
+  // Standalone log-book entries tutors add for what they covered in a
+  // class. Deliberately NOT tied to a specific LiveClass row, so a tutor
+  // can add/edit an entry for any past date at any time (e.g. backfilling
+  // a class they forgot to log right after it happened).
+  ClassLog: {
+    table: "class_logs",
+    columns: ["tutor_id", "tutor_name", "log_date", "class_name", "chapter", "topics_covered"],
+    arrayFields: [],
+    boolFields: [],
+  },
   MockTest: {
     table: "mock_tests",
     columns: ["level_id", "title", "duration_minutes", "total_marks", "difficulty", "questions"],

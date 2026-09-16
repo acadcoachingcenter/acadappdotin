@@ -72,12 +72,12 @@ const ENTITY_NAMES = [
   "Assignment",
   "Attendance",
   "BookPurchase",
+  "ClassLog",
   "Course",
   "Enrollment",
   "Event",
   "ExamLevel",
   "Expense",
-  "GradeMeQuestion",
   "HomeTutor",
   "Inquiry",
   "LearningResource",
@@ -92,7 +92,6 @@ const ENTITY_NAMES = [
   "SubjectClassroom",
   "Submission",
   "Topic",
-  "TopicLog",
   "TuitionRequest",
   "TutorInterest",
   "TutorPayment",
@@ -426,29 +425,6 @@ const functionsApi = {
 
 
 /*
- * GradeMe -- generation trigger + SchoolBook's ingested-chapter registry.
- * (Approved-question reads/approve/reject go through apiClient.entities.GradeMeQuestion.)
- */
-const grademeApi = {
-
-  availableChapters: () =>
-    apiFetch("/api/grademe/available-chapters"),
-
-  topics: () =>
-    apiFetch("/api/grademe/topics"),
-
-  generate: (payload) =>
-    apiFetch(
-      "/api/grademe/generate",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }
-    ),
-};
-
-
-/*
  * Base44-compatible no-op analytics.
  */
 const appLogs = {
@@ -472,9 +448,6 @@ export const apiClient = {
 
   functions:
     functionsApi,
-
-  grademe:
-    grademeApi,
 
   appLogs,
 

@@ -269,6 +269,45 @@ export async function logCoveredPortions(classId, text) {
   return normalizeClass(row);
 }
 
+// Standalone class-log entries (Date | Class | Chapter | Topics Covered).
+// Not tied to a specific LiveClass row, so a tutor can add or backfill an
+// entry for any date, any time - including classes they forgot to log
+// right after they happened.
+export async function listClassLogs(tutorId) {
+  const rows = await apiClient.entities.ClassLog.list("-log_date", 500);
+  return (Array.isArray(rows) ? rows : []).filter((r) => r.tutor_id === tutorId);
+}
+
+// Admin-facing: every tutor's log entries, for the Weekly Coverage Report.
+export async function listAllClassLogs() {
+  const rows = await apiClient.entities.ClassLog.list("-log_date", 1000);
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function addClassLog({ tutorId, tutorName, logDate, className, chapter, topicsCovered }) {
+  return apiClient.entities.ClassLog.create({
+    tutor_id: tutorId,
+    tutor_name: tutorName,
+    log_date: logDate,
+    class_name: className,
+    chapter,
+    topics_covered: topicsCovered,
+  });
+}
+
+export async function updateClassLog(id, { logDate, className, chapter, topicsCovered }) {
+  return apiClient.entities.ClassLog.update(id, {
+    log_date: logDate,
+    class_name: className,
+    chapter,
+    topics_covered: topicsCovered,
+  });
+}
+
+export async function deleteClassLog(id) {
+  return apiClient.entities.ClassLog.delete(id);
+}
+
 export async function deleteClass(classId) {
   await apiClient.entities.LiveClass.delete(classId);
   return true;

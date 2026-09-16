@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, BookOpen, Copy } from "lucide-react";
-import { listClassesForUser } from "@/lib/classroomApi";
-import { useAuth } from "@/lib/AuthContext";
+import { listAllClassLogs } from "@/lib/classroomApi";
 
 const INDIA_OFFSET = "+05:30";
 
@@ -25,18 +24,16 @@ function formatDateRange(start, end) {
 }
 
 export default function AdminWeeklyCoverage() {
-  const { user } = useAuth();
-  const [classes, setClasses] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [copiedKey, setCopiedKey] = useState(null);
 
   useEffect(() => {
-    if (!user) return;
-    listClassesForUser(user)
-      .then(setClasses)
+    listAllClassLogs()
+      .then(setLogs)
       .finally(() => setLoading(false));
-  }, [user]);
+  }, []);
 
   const { start, end } = useMemo(() => {
     const base = new Date();
@@ -45,29 +42,29 @@ export default function AdminWeeklyCoverage() {
   }, [weekOffset]);
 
   const groups = useMemo(() => {
-    const inRange = classes.filter((c) => {
-      if (!c.coveredPortions) return false;
-      const classDate = new Date(c.schedule?.date || "");
-      return classDate >= start && classDate <= new Date(end.getTime() + 24 * 60 * 60 * 1000 - 1);
+    const inRange = logs.filter((log) => {
+      const logDate = new Date(`${log.log_date}T00:00:00${INDIA_OFFSET}`);
+      return logDate >= start && logDate <= new Date(end.getTime() + 24 * 60 * 60 * 1000 - 1);
     });
 
     const byKey = {};
-    for (const c of inRange) {
-      const key = `Grade ${c.grade} - ${c.subject}`;
+    for (const log of inRange) {
+      const key = log.class_name || "Unspecified Class";
       if (!byKey[key]) byKey[key] = [];
-      byKey[key].push(c);
+      byKey[key].push(log);
     }
 
-    Object.values(byKey).forEach((list) =>
-      list.sort((a, b) => (a.schedule?.date || "").localeCompare(b.schedule?.date || ""))
-    );
+    Object.values(byKey).forEach((list) => list.sort((a, b) => a.log_date.localeCompare(b.log_date)));
 
     return Object.entries(byKey).sort(([a], [b]) => a.localeCompare(b));
-  }, [classes, start, end]);
+  }, [logs, start, end]);
 
   const handleCopy = (key, entries) => {
     const text = entries
-      .map((c) => `${c.schedule?.date} (${c.batchName}, ${c.tutorName}): ${c.coveredPortions}`)
+      .map(
+        (log) =>
+          `${log.log_date}${log.chapter ? ` (${log.chapter})` : ""} - ${log.tutor_name}: ${log.topics_covered}`
+      )
       .join("\n");
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
@@ -81,8 +78,8 @@ export default function AdminWeeklyCoverage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Weekly Coverage Report</h1>
         <p className="mt-1 text-slate-600">
-          What tutors logged as covered, grouped by grade and subject — use this to set matching
-          test questions each week.
+          What tutors logged as covered, grouped by class — use this to set matching test
+          questions each week.
         </p>
       </div>
 
@@ -97,8 +94,7 @@ export default function AdminWeeklyCoverage() {
         <span className="font-semibold text-slate-900">{formatDateRange(start, end)}</span>
         <button
           onClick={() => setWeekOffset((w) => w + 1)}
-          disabled={weekOffset >= 0}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
         >
           Next Week
           <ChevronRight size={16} />
@@ -107,8 +103,8 @@ export default function AdminWeeklyCoverage() {
 
       {groups.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
-          No logged coverage for this week yet. Tutors log this from their Online Classroom page
-          after each class.
+          No logged coverage for this week. Tutors add entries from the Class Log section on
+          their Online Classroom page — any date, so past weeks can be backfilled too.
         </div>
       ) : (
         <div className="space-y-4">
@@ -127,16 +123,26 @@ export default function AdminWeeklyCoverage() {
                   {copiedKey === key ? "Copied!" : "Copy all"}
                 </button>
               </div>
-              <div className="divide-y divide-slate-100">
-                {entries.map((c) => (
-                  <div key={c.id} className="px-5 py-3">
-                    <p className="text-xs text-slate-500">
-                      {c.schedule?.date} · {c.batchName} · {c.tutorName}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-800">{c.coveredPortions}</p>
-                  </div>
-                ))}
-              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-5 py-2">Date</th>
+                    <th className="px-5 py-2">Chapter</th>
+                    <th className="px-5 py-2">Topics Covered</th>
+                    <th className="px-5 py-2">Tutor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {entries.map((log) => (
+                    <tr key={log.id}>
+                      <td className="whitespace-nowrap px-5 py-2.5 text-slate-700">{log.log_date}</td>
+                      <td className="px-5 py-2.5 text-slate-600">{log.chapter || "—"}</td>
+                      <td className="px-5 py-2.5 text-slate-800">{log.topics_covered}</td>
+                      <td className="px-5 py-2.5 text-slate-500">{log.tutor_name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ))}
         </div>

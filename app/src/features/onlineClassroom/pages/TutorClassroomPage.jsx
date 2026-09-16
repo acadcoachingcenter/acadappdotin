@@ -1,32 +1,120 @@
-import { useEffect, useState } from "react";
-import { ExternalLink, CalendarDays, LayoutGrid, List, BookOpen, Save } from "lucide-react";
-import { classStatus, formatClassTime, listClassesForUser, logCoveredPortions } from "@/lib/classroomApi";
+import { useEffect, useMemo, useState } from "react";
+import { ExternalLink, CalendarDays, LayoutGrid, List, BookOpen, Plus, Pencil, Trash2, X, Save } from "lucide-react";
+import {
+  classStatus,
+  formatClassTime,
+  listClassesForUser,
+  listClassLogs,
+  addClassLog,
+  updateClassLog,
+  deleteClassLog,
+} from "@/lib/classroomApi";
 import WeeklyTimetable from "../components/WeeklyTimetable";
 import WhiteboardButton from "../components/WhiteboardButton";
+
+function todayIST() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+}
+
+const emptyLogForm = { logDate: todayIST(), className: "", chapter: "", topicsCovered: "" };
 
 export default function TutorClassroomPage({ user }) {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("list");
-  const [logDrafts, setLogDrafts] = useState({});
-  const [savingLogId, setSavingLogId] = useState(null);
+
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(true);
+  const [editingLogId, setEditingLogId] = useState(null); // null = not open, "new" = adding
+  const [logForm, setLogForm] = useState(emptyLogForm);
+  const [savingLog, setSavingLog] = useState(false);
 
   useEffect(() => {
     listClassesForUser(user).then(setClasses).finally(() => setLoading(false));
   }, [user]);
 
-  const getLogDraft = (c) => (logDrafts[c.id] !== undefined ? logDrafts[c.id] : c.coveredPortions || "");
+  const refreshLogs = () => {
+    setLogsLoading(true);
+    listClassLogs(user.id).then(setLogs).finally(() => setLogsLoading(false));
+  };
 
-  const handleSaveLog = async (c) => {
-    setSavingLogId(c.id);
+  useEffect(() => {
+    refreshLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Suggested class names from this tutor's own scheduled classes, so they
+  // don't have to retype "Grade 9 - Mathematics" from scratch each time -
+  // but the field stays free text, since a tutor may log an ad-hoc class
+  // that was never on the ACAD schedule at all.
+  const classNameSuggestions = useMemo(() => {
+    const set = new Set(classes.map((c) => `Grade ${c.grade} - ${c.subject}`));
+    return [...set];
+  }, [classes]);
+
+  const startAddLog = () => {
+    setLogForm(emptyLogForm);
+    setEditingLogId("new");
+  };
+
+  const startEditLog = (log) => {
+    setLogForm({
+      logDate: log.log_date,
+      className: log.class_name,
+      chapter: log.chapter || "",
+      topicsCovered: log.topics_covered,
+    });
+    setEditingLogId(log.id);
+  };
+
+  const cancelLogEdit = () => {
+    setEditingLogId(null);
+    setLogForm(emptyLogForm);
+  };
+
+  const handleSaveLog = async () => {
+    if (!logForm.logDate || !logForm.className.trim() || !logForm.topicsCovered.trim()) {
+      alert("Please fill in at least Date, Class, and Topics Covered.");
+      return;
+    }
+
+    setSavingLog(true);
     try {
-      const updated = await logCoveredPortions(c.id, getLogDraft(c).trim());
-      setClasses((prev) => prev.map((cls) => (cls.id === c.id ? updated : cls)));
+      if (editingLogId === "new") {
+        await addClassLog({
+          tutorId: user.id,
+          tutorName: user.full_name || user.email,
+          logDate: logForm.logDate,
+          className: logForm.className.trim(),
+          chapter: logForm.chapter.trim(),
+          topicsCovered: logForm.topicsCovered.trim(),
+        });
+      } else {
+        await updateClassLog(editingLogId, {
+          logDate: logForm.logDate,
+          className: logForm.className.trim(),
+          chapter: logForm.chapter.trim(),
+          topicsCovered: logForm.topicsCovered.trim(),
+        });
+      }
+      cancelLogEdit();
+      refreshLogs();
     } catch (error) {
-      console.error("Error saving covered portions:", error);
+      console.error("Error saving class log:", error);
       alert("Failed to save: " + (error.message || "Unknown error"));
     } finally {
-      setSavingLogId(null);
+      setSavingLog(false);
+    }
+  };
+
+  const handleDeleteLog = async (log) => {
+    if (!window.confirm(`Delete this log entry for ${log.log_date}?`)) return;
+    try {
+      await deleteClassLog(log.id);
+      refreshLogs();
+    } catch (error) {
+      console.error("Error deleting class log:", error);
+      alert("Failed to delete: " + (error.message || "Unknown error"));
     }
   };
 
@@ -129,34 +217,152 @@ export default function TutorClassroomPage({ user }) {
                   You'll get an email and WhatsApp notification once it's sent.
                 </div>
               )}
-
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-900">
-                  <BookOpen size={15} />
-                  Class Log — portions covered
-                </label>
-                <textarea
-                  value={getLogDraft(c)}
-                  onChange={(e) => setLogDrafts((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                  rows={2}
-                  placeholder="What did you cover in this class? e.g. Chapter 4 - Photosynthesis, worked through practice problems 1-10"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
-                {getLogDraft(c) !== (c.coveredPortions || "") && (
-                  <button
-                    onClick={() => handleSaveLog(c)}
-                    disabled={savingLogId === c.id}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                  >
-                    <Save size={13} />
-                    {savingLogId === c.id ? "Saving…" : "Save Log"}
-                  </button>
-                )}
-              </div>
             </div>
           );
         })
       )}
+
+      <div className="border-t border-slate-200 pt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <BookOpen size={18} />
+              Class Log
+            </h2>
+            <p className="text-sm text-slate-600">
+              Log what you covered, for any date — add an entry any time, including for classes
+              you forgot to log earlier.
+            </p>
+          </div>
+          {editingLogId === null && (
+            <button
+              onClick={startAddLog}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+            >
+              <Plus size={15} />
+              Add Entry
+            </button>
+          )}
+        </div>
+
+        {editingLogId !== null && (
+          <div className="mb-4 rounded-xl border-2 border-blue-200 bg-white p-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-900">Date</span>
+                <input
+                  type="date"
+                  value={logForm.logDate}
+                  onChange={(e) => setLogForm({ ...logForm, logDate: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                />
+              </label>
+
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-900">Class</span>
+                <input
+                  list="class-name-suggestions"
+                  value={logForm.className}
+                  onChange={(e) => setLogForm({ ...logForm, className: e.target.value })}
+                  placeholder="e.g. Grade 9 - Mathematics"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                />
+                <datalist id="class-name-suggestions">
+                  {classNameSuggestions.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </label>
+
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-900">Chapter</span>
+                <input
+                  value={logForm.chapter}
+                  onChange={(e) => setLogForm({ ...logForm, chapter: e.target.value })}
+                  placeholder="e.g. Chapter 4"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                />
+              </label>
+
+              <label className="text-sm lg:col-span-1 sm:col-span-2">
+                <span className="mb-1 block font-medium text-slate-900">Topics Covered</span>
+                <input
+                  value={logForm.topicsCovered}
+                  onChange={(e) => setLogForm({ ...logForm, topicsCovered: e.target.value })}
+                  placeholder="e.g. Photosynthesis, practice problems 1-10"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={handleSaveLog}
+                disabled={savingLog}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                <Save size={14} />
+                {savingLog ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={cancelLogEdit}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium"
+              >
+                <X size={14} />
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {logsLoading ? (
+          <p className="text-sm text-slate-600">Loading log entries…</p>
+        ) : logs.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
+            No log entries yet. Click "Add Entry" to log your first class.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-2.5">Date</th>
+                  <th className="px-4 py-2.5">Class</th>
+                  <th className="px-4 py-2.5">Chapter</th>
+                  <th className="px-4 py-2.5">Topics Covered</th>
+                  <th className="px-4 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {logs.map((log) => (
+                  <tr key={log.id}>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-slate-700">{log.log_date}</td>
+                    <td className="px-4 py-2.5 font-medium text-slate-900">{log.class_name}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{log.chapter || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{log.topics_covered}</td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                      <button
+                        onClick={() => startEditLog(log)}
+                        className="mr-1 rounded p-1.5 text-slate-500 hover:bg-slate-100"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLog(log)}
+                        className="rounded p-1.5 text-red-500 hover:bg-red-50"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
