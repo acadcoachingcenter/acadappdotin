@@ -16,6 +16,7 @@ import TutorSubscription from './pages/TutorSubscription';
 import AdminHomeTutorApproval from './pages/AdminHomeTutorApproval';
 import OnlineBooks from './pages/OnlineBooks';
 import AdminBookApprovals from './pages/AdminBookApprovals';
+import MarketingSkillPanel from './pages/MarketingSkillPanel';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -67,69 +68,77 @@ const AuthenticatedApp = () => {
           }
         />
       ))}
-      <Route 
-        path="/SupportUs" 
+      <Route
+        path="/SupportUs"
         element={
           <LayoutWrapper currentPageName="SupportUs">
             <SupportUs />
           </LayoutWrapper>
-        } 
+        }
       />
-      <Route 
-        path="/AIQuestionPaperGenerator" 
+      <Route
+        path="/AIQuestionPaperGenerator"
         element={
           <LayoutWrapper currentPageName="AI Question Paper Generator">
             <AIQuestionPaperGenerator />
           </LayoutWrapper>
-        } 
+        }
       />
-      <Route 
-        path="/FindTeachersNearYou" 
+      <Route
+        path="/FindTeachersNearYou"
         element={
           <LayoutWrapper currentPageName="Find Teachers Near You">
             <FindTeachersNearYou />
           </LayoutWrapper>
-        } 
+        }
       />
-      <Route 
-        path="/BecomeHomeTutor" 
+      <Route
+        path="/BecomeHomeTutor"
         element={
           <LayoutWrapper currentPageName="Become a Home Tutor">
             <BecomeHomeTutor />
           </LayoutWrapper>
-        } 
+        }
       />
-      <Route 
-        path="/TutorSubscription" 
+      <Route
+        path="/TutorSubscription"
         element={
           <LayoutWrapper currentPageName="Subscription Plans">
             <TutorSubscription />
           </LayoutWrapper>
-        } 
+        }
       />
-      <Route 
-        path="/AdminHomeTutorApproval" 
+      <Route
+        path="/AdminHomeTutorApproval"
         element={
           <LayoutWrapper currentPageName="Home Tutor Approvals">
             <AdminHomeTutorApproval />
           </LayoutWrapper>
-        } 
+        }
       />
-      <Route 
-        path="/OnlineBooks" 
+      <Route
+        path="/OnlineBooks"
         element={
           <LayoutWrapper currentPageName="Online Books">
             <OnlineBooks />
           </LayoutWrapper>
-        } 
+        }
       />
-      <Route 
-        path="/AdminBookApprovals" 
+      <Route
+        path="/AdminBookApprovals"
         element={
           <LayoutWrapper currentPageName="Book Approvals">
             <AdminBookApprovals />
           </LayoutWrapper>
-        } 
+        }
+      />
+      <Route
+        path="/MarketingSkillPanel"
+        element={
+          <LayoutWrapper currentPageName="Marketing Assistant">
+            <MarketingSkillPanel />
+          </LayoutWrapper>
+        }
       />
       <Route path="*" element={<PageNotFound />} />
     </Routes>

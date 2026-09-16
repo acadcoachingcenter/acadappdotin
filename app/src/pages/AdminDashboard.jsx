@@ -18,7 +18,8 @@ import {
   UserPlus,
   FolderKanban,
   ClipboardList,
-  Receipt
+  Receipt,
+  Sparkles
 } from "lucide-react";
 import EnrollStudentModal from "../components/admin/EnrollStudentModal";
 import RecordTutorPaymentModal from "../components/admin/RecordTutorPaymentModal";
@@ -385,6 +386,20 @@ export default function AdminDashboard() {
             >
               <FolderKanban className="w-4 h-4" />
               Manage Courses
+            </Link>
+          </Button>
+
+          <Button
+            asChild
+            className="bg-teal-600 hover:bg-teal-700"
+          >
+            <Link
+              to={createPageUrl(
+                "MarketingSkillPanel"
+              )}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Marketing Assistant
             </Link>
           </Button>
 
