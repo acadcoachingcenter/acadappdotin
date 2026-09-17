@@ -73,77 +73,100 @@ function GraphicModal({ item, brand, onClose }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const W = 1080;
-    const H = 1080;
     canvas.width = W;
-    canvas.height = H;
+    const pad = 60;
+    const contentW = W - pad * 2;
 
     function draw(logoImg) {
-      // Background gradient
-      const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, "#0d47a1");
-      grad.addColorStop(1, "#1565C0");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
-
-      // White content card
-      const pad = 60;
-      ctx.fillStyle = "#ffffff";
-      roundRect(ctx, pad, pad, W - pad * 2, H - pad * 2, 28);
-      ctx.fill();
-
-      // Logo (top center) or ACAD wordmark fallback
-      let contentTop = pad + 70;
+      // --- Measure everything first (nothing drawn yet) ---
+      let headerHeight;
+      let logoDrawW = 0;
+      let logoDrawH = 0;
       if (logoImg) {
-        const logoH = 90;
-        const logoW = (logoImg.width / logoImg.height) * logoH;
-        ctx.drawImage(logoImg, W / 2 - logoW / 2, contentTop, logoW, logoH);
-        contentTop += logoH + 30;
+        logoDrawH = 90;
+        logoDrawW = (logoImg.width / logoImg.height) * logoDrawH;
+        headerHeight = logoDrawH + 30;
       } else {
-        ctx.fillStyle = "#1565C0";
-        ctx.font = "bold 56px system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(brand?.business_name || "ACAD", W / 2, contentTop + 50);
-        contentTop += 100;
+        headerHeight = 100;
       }
 
-      // Message text, word-wrapped
-      ctx.fillStyle = "#1e293b";
-      ctx.font = "500 40px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      const maxWidth = W - pad * 2 - 80;
-      const lines = wrapText(ctx, item.final_text || item.draft_text, maxWidth);
-      const lineHeight = 54;
-      let textY = contentTop + 80;
-      const textBlockHeight = lines.length * lineHeight;
-      // vertically center remaining space between contentTop and footer
-      const footerTop = H - pad - 160;
-      const availableHeight = footerTop - contentTop;
-      textY = contentTop + Math.max(0, (availableHeight - textBlockHeight) / 2) + lineHeight;
-      lines.forEach((line) => {
-        ctx.fillText(line, W / 2, textY);
-        textY += lineHeight;
-      });
+      // Word-wrap the message, shrinking the font if it's long, rather
+      // than letting a long draft (e.g. an English+Tamil combined message)
+      // overflow into a footer whose position used to be a fixed pixel
+      // value regardless of how much text came before it.
+      const maxTextWidth = contentW - 80;
+      let fontSize = 40;
+      let lines, lineHeight, textBlockHeight;
+      const minFontSize = 24;
+      do {
+        ctx.font = `500 ${fontSize}px system-ui, sans-serif`;
+        lines = wrapText(ctx, item.final_text || item.draft_text, maxTextWidth);
+        lineHeight = fontSize * 1.35;
+        textBlockHeight = lines.length * lineHeight;
+        if (textBlockHeight <= 640 || fontSize <= minFontSize) break;
+        fontSize -= 2;
+      } while (true);
 
-      // Footer divider
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.beginPath();
-      ctx.moveTo(pad + 60, footerTop);
-      ctx.lineTo(W - pad - 60, footerTop);
-      ctx.stroke();
-
-      // Contact info footer
-      ctx.font = "400 26px system-ui, sans-serif";
-      ctx.fillStyle = "#475569";
-      let footerY = footerTop + 44;
       const contactLines = [
         brand?.contact_phone ? `📞 ${brand.contact_phone}` : null,
         brand?.contact_email ? `✉️ ${brand.contact_email}` : null,
         brand?.contact_website ? `🌐 ${brand.contact_website}` : null,
         brand?.contact_address || null,
       ].filter(Boolean);
+      const footerLineHeight = 36;
+      const footerHeight = 44 + contactLines.length * footerLineHeight;
+
+      const topPad = pad + 70;
+      const gapAfterText = 50;
+      const footerTop = topPad + headerHeight + 40 + textBlockHeight + gapAfterText;
+      // Canvas grows taller for long content instead of clipping/overlapping
+      // - a 1080x1080 square is just the minimum, not a hard limit.
+      const H = Math.max(1080, footerTop + footerHeight + pad);
+      canvas.height = H;
+
+      // --- Now actually draw, using the measurements above ---
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, "#0d47a1");
+      grad.addColorStop(1, "#1565C0");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = "#ffffff";
+      roundRect(ctx, pad, pad, contentW, H - pad * 2, 28);
+      ctx.fill();
+
+      let y = topPad;
+      if (logoImg) {
+        ctx.drawImage(logoImg, W / 2 - logoDrawW / 2, y, logoDrawW, logoDrawH);
+      } else {
+        ctx.fillStyle = "#1565C0";
+        ctx.font = "bold 56px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(brand?.business_name || "ACAD", W / 2, y + 50);
+      }
+      y += headerHeight;
+
+      ctx.fillStyle = "#1e293b";
+      ctx.font = `500 ${fontSize}px system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      let textY = y + 40 + lineHeight * 0.7;
+      lines.forEach((line) => {
+        ctx.fillText(line, W / 2, textY);
+        textY += lineHeight;
+      });
+
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.moveTo(pad + 60, footerTop);
+      ctx.lineTo(W - pad - 60, footerTop);
+      ctx.stroke();
+
+      ctx.font = "400 26px system-ui, sans-serif";
+      ctx.fillStyle = "#475569";
+      let footerY = footerTop + 44;
       contactLines.forEach((line) => {
         ctx.fillText(line, W / 2, footerY);
-        footerY += 36;
+        footerY += footerLineHeight;
       });
 
       setDownloadUrl(canvas.toDataURL("image/png"));
@@ -173,7 +196,6 @@ function GraphicModal({ item, brand, onClose }) {
         <canvas
           ref={canvasRef}
           className="w-full rounded-lg border border-slate-200"
-          style={{ aspectRatio: "1 / 1" }}
         />
         <div className="flex gap-3 mt-4">
           <Button
