@@ -76,6 +76,22 @@ async function generateDraft(env, payload) {
     brand.key_phrases ? `House phrases that work well: ${brand.key_phrases}.` : '',
     `Task type: ${CONTENT_TYPE_GUIDANCE[contentType]}`,
     `Channel: ${channel} — keep it appropriately short for this channel.`,
+    // Real contact details, so the model uses these exactly instead of
+    // inventing a placeholder phone number/website when a CTA is needed
+    // (this was the actual cause of drafts showing a fake number like
+    // "044-1234-5678" - the model was never told the real one before).
+    [
+      brand.contact_phone ? `Phone: ${brand.contact_phone}` : null,
+      brand.contact_website ? `Website: ${brand.contact_website}` : null,
+      brand.contact_email ? `Email: ${brand.contact_email}` : null,
+    ].some(Boolean)
+      ? `Real contact details - use these EXACTLY if a CTA/contact line is needed, never invent a different phone number, email, or website:\n` +
+        [
+          brand.contact_phone ? `- Phone: ${brand.contact_phone}` : null,
+          brand.contact_website ? `- Website: ${brand.contact_website}` : null,
+          brand.contact_email ? `- Email: ${brand.contact_email}` : null,
+        ].filter(Boolean).join('\n')
+      : `No contact phone/email/website is configured yet - if this content type needs a CTA, use a generic call to action (e.g. "message us to enroll") rather than inventing a phone number or email.`,
     skills.length
       ? `Learned rules from past corrections at this center (follow these):\n` +
         skills.map((s) => `- ${s.procedure_text}`).join('\n')
