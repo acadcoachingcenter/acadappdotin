@@ -26,6 +26,18 @@ const CONTENT_TYPE_GUIDANCE = {
   review_request: 'Ask a satisfied parent/student for a Google review or testimonial. Short, easy, one clear ask.',
 };
 
+const STRUCTURE_INSTRUCTIONS = [
+  'Format for readability, not a wall of text - this will often be turned into a social/WhatsApp graphic, where',
+  'a dense paragraph is hard to scan and looks crowded. Structure the message as:',
+  '  1. ONE short, punchy opening line (the hook - can have 1 emoji).',
+  '  2. 3-5 short bullet points, each on its own line, each starting with a relevant emoji (✅ 📍 🎯 📞 etc)',
+  '     instead of a dash or bullet character. Each bullet is a short phrase, not a full sentence with sub-clauses.',
+  '  3. ONE short closing line with the call to action.',
+  'Put a real newline between the opening line, each bullet, and the closing line - do not run them together in one paragraph.',
+  'Keep the WHOLE message brief. If the request asks for both English and Tamil, write ONLY the language(s)',
+  'actually requested - do not add a second full language version unless explicitly asked, since that doubles length.',
+].join('\n');
+
 /**
  * Keyword-overlap + reliability score retrieval. See v1 notes: no
  * vector DB until skill volume actually justifies one.
@@ -76,6 +88,7 @@ async function generateDraft(env, payload) {
     brand.key_phrases ? `House phrases that work well: ${brand.key_phrases}.` : '',
     `Task type: ${CONTENT_TYPE_GUIDANCE[contentType]}`,
     `Channel: ${channel} — keep it appropriately short for this channel.`,
+    STRUCTURE_INSTRUCTIONS,
     // Real contact details, so the model uses these exactly instead of
     // inventing a placeholder phone number/website when a CTA is needed
     // (this was the actual cause of drafts showing a fake number like

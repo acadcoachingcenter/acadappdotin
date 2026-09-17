@@ -90,20 +90,30 @@ function GraphicModal({ item, brand, onClose }) {
         headerHeight = 100;
       }
 
-      // Word-wrap the message, shrinking the font if it's long, rather
-      // than letting a long draft (e.g. an English+Tamil combined message)
-      // overflow into a footer whose position used to be a fixed pixel
-      // value regardless of how much text came before it.
+      // Structured layout: the opening/closing lines stay centered, bullet
+      // lines (see STRUCTURE_INSTRUCTIONS on the backend - the AI is now
+      // prompted to write short bullets starting with an emoji) render
+      // left-aligned instead of as one dense centered paragraph. Still
+      // shrinks the font if the content runs long, same as before.
       const maxTextWidth = contentW - 80;
+      const bulletLeftMargin = pad + 60;
+      const bulletGap = 14; // extra breathing room before each new bullet
       let fontSize = 40;
-      let lines, lineHeight, textBlockHeight;
+      let layout, lineHeight, textBlockHeight;
       const minFontSize = 24;
       do {
         ctx.font = `500 ${fontSize}px system-ui, sans-serif`;
-        lines = wrapText(ctx, item.final_text || item.draft_text, maxTextWidth);
+        layout = layoutLines(ctx, item.final_text || item.draft_text, {
+          centerMaxWidth: maxTextWidth,
+          bulletMaxWidth: maxTextWidth,
+          bulletIndent: 0,
+        });
         lineHeight = fontSize * 1.35;
-        textBlockHeight = lines.length * lineHeight;
-        if (textBlockHeight <= 640 || fontSize <= minFontSize) break;
+        textBlockHeight = layout.reduce(
+          (sum, l, i) => sum + lineHeight + (l.bullet && !l.continuation && i > 0 ? bulletGap : 0),
+          0
+        );
+        if (textBlockHeight <= 680 || fontSize <= minFontSize) break;
         fontSize -= 2;
       } while (true);
 
@@ -148,10 +158,16 @@ function GraphicModal({ item, brand, onClose }) {
 
       ctx.fillStyle = "#1e293b";
       ctx.font = `500 ${fontSize}px system-ui, sans-serif`;
-      ctx.textAlign = "center";
       let textY = y + 40 + lineHeight * 0.7;
-      lines.forEach((line) => {
-        ctx.fillText(line, W / 2, textY);
+      layout.forEach((l, i) => {
+        if (l.bullet && !l.continuation && i > 0) textY += bulletGap;
+        if (l.bullet) {
+          ctx.textAlign = "left";
+          ctx.fillText(l.text, bulletLeftMargin, textY);
+        } else {
+          ctx.textAlign = "center";
+          ctx.fillText(l.text, W / 2, textY);
+        }
         textY += lineHeight;
       });
 
@@ -163,6 +179,7 @@ function GraphicModal({ item, brand, onClose }) {
 
       ctx.font = "400 26px system-ui, sans-serif";
       ctx.fillStyle = "#475569";
+      ctx.textAlign = "center";
       let footerY = footerTop + 44;
       contactLines.forEach((line) => {
         ctx.fillText(line, W / 2, footerY);
@@ -242,6 +259,41 @@ function wrapText(ctx, text, maxWidth) {
   }
   if (line) lines.push(line);
   return lines;
+}
+
+// A "bullet" line is one that starts with an emoji or a plain bullet
+// character - this is how the AI is now prompted to structure content
+// (see STRUCTURE_INSTRUCTIONS on the backend). Bullets render left-aligned
+// with a hanging indent; everything else (the opening hook line, the
+// closing CTA line) stays centered, so the graphic reads like a designed
+// card instead of one dense centered paragraph.
+const BULLET_PATTERN = /^([\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]|[•\-*])\s*/u;
+
+function isBulletLine(line) {
+  return BULLET_PATTERN.test(line.trim());
+}
+
+// Splits raw text into logical lines (respecting the AI's own newlines
+// first), then word-wraps each one individually to fit its own max width -
+// bullets get a narrower width to leave room for the hanging indent.
+function layoutLines(ctx, rawText, { centerMaxWidth, bulletMaxWidth, bulletIndent }) {
+  const rawLines = (rawText || "").split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const out = [];
+  for (const raw of rawLines) {
+    const bullet = isBulletLine(raw);
+    const match = raw.match(BULLET_PATTERN);
+    const marker = bullet && match ? match[0].trim() : null;
+    const body = bullet && match ? raw.slice(match[0].length) : raw;
+    const wrapped = wrapText(ctx, body, bullet ? bulletMaxWidth - bulletIndent : centerMaxWidth);
+    wrapped.forEach((text, i) => {
+      out.push({
+        text: bullet && i === 0 && marker ? `${marker} ${text}` : text,
+        bullet,
+        continuation: bullet && i > 0,
+      });
+    });
+  }
+  return out;
 }
 
 export default function MarketingSkillPanel() {
