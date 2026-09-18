@@ -9,7 +9,7 @@ const mockTests = [
     title: "NEET | JEE Weekly Test Series",
     description: "Weekly updated NEET & JEE questions — new test series added every week covering Biology, Physics, Chemistry & Maths. Stay consistent and track your progress.",
     subject: "NEET & JEE",
-    url: "https://acad-neet-v3.vercel.app",
+    url: "https://neet.acadapp.in",
     color: "from-orange-500 to-red-600",
     badgeColor: "bg-orange-500",
     icon: ClipboardList,
