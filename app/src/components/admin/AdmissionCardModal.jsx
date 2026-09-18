@@ -18,17 +18,33 @@ const TERMS_AND_CONDITIONS = [
 ];
 
 const ACAD_LOGO_URL = "https://media.base44.com/images/public/689c76e2ab454d53f6e29bd5/c9bd2f11c_ACADLOGONEW.png";
+const ACAD_WEBSITE = "acadapp.in";
 
+// Loads the logo and returns a circular-clipped PNG data URL (transparent
+// corners) so it renders as a circle in jsPDF too, not just in the browser
+// preview (where CSS rounded-full did the clipping for free).
 async function loadImageAsDataURL(url) {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
+      const size = Math.min(img.naturalWidth, img.naturalHeight);
       const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+      canvas.width = size;
+      canvas.height = size;
       const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+
+      const offsetX = (img.naturalWidth - size) / 2;
+      const offsetY = (img.naturalHeight - size) / 2;
+      ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+      ctx.restore();
+
       resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = () => resolve(null);
@@ -54,23 +70,27 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 15;
 
-      // Header band
+      // Header band (slightly taller to fit the website line)
+      const headerHeight = 34;
       doc.setFillColor(21, 101, 192);
-      doc.rect(0, 0, pageWidth, 30, "F");
+      doc.rect(0, 0, pageWidth, headerHeight, "F");
       if (logoDataUrl) {
-        try { doc.addImage(logoDataUrl, "PNG", margin, 4, 20, 20); } catch (e) { /* skip logo */ }
+        try { doc.addImage(logoDataUrl, "PNG", margin, 5, 22, 22); } catch (e) { /* skip logo */ }
       }
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.text("ACAD COACHING CENTER", margin + 24, 13);
+      doc.setFontSize(17);
+      doc.text("ACAD COACHING CENTER", margin + 27, 13);
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      doc.text("Official Admission Card", margin + 24, 20);
-      doc.text("acadcoachingcenter@gmail.com  |  +91-9790818436", margin + 24, 25);
+      doc.text("Official Admission Card", margin + 27, 19);
+      doc.setFont("helvetica", "bold");
+      doc.text(ACAD_WEBSITE, margin + 27, 25);
+      doc.setFont("helvetica", "normal");
+      doc.text("  |  acadcoachingcenter@gmail.com  |  +91-9790818436", margin + 27 + doc.getTextWidth(ACAD_WEBSITE), 25);
 
       // Card border
-      let y = 38;
+      let y = headerHeight + 8;
       const cardHeight = 60;
       doc.setDrawColor(21, 101, 192);
       doc.setLineWidth(0.6);
@@ -118,7 +138,7 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
       });
 
       // T&C section
-      y = 108;
+      y = headerHeight + 8 + cardHeight + 10;
       doc.setFillColor(245, 247, 250);
       doc.roundedRect(margin, y, pageWidth - 2 * margin, 175, 3, 3, "F");
       doc.setFont("helvetica", "bold");
@@ -150,7 +170,7 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
       // Footer
       doc.setFontSize(7);
       doc.setTextColor(130, 130, 130);
-      doc.text("This is a computer-generated admission card and does not require a physical seal.", pageWidth / 2, pageHeight - 8, { align: "center" });
+      doc.text(`${ACAD_WEBSITE}  •  This is a computer-generated admission card and does not require a physical seal.`, pageWidth / 2, pageHeight - 8, { align: "center" });
 
       const fileName = `Admission_${(enrollment.student_name || "student").replace(/\s+/g, "_")}.pdf`;
       doc.save(fileName);
@@ -176,7 +196,10 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
             <div>
               <h2 className="text-xl font-bold">ACAD COACHING CENTER</h2>
               <p className="text-sm opacity-90">Official Admission Card</p>
-              <p className="text-xs opacity-80">acadcoachingcenter@gmail.com | +91-9790818436</p>
+              <p className="text-xs opacity-80">
+                <span className="font-semibold">{ACAD_WEBSITE}</span>
+                {" | acadcoachingcenter@gmail.com | +91-9790818436"}
+              </p>
             </div>
           </div>
 
@@ -218,6 +241,10 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
               <div className="border-t border-slate-400 w-32 mt-8"></div>
               Authorized Signatory (ACAD)
             </div>
+          </div>
+
+          <div className="text-center text-[10px] text-slate-400 mt-4">
+            {ACAD_WEBSITE} • This is a computer-generated admission card and does not require a physical seal.
           </div>
         </div>
 
