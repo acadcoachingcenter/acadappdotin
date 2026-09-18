@@ -52,14 +52,59 @@ async function loadImageAsDataURL(url) {
   });
 }
 
-export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
+// Merges the shared student-level fields across a group of enrollments
+// (one record per course) and returns the per-course rows plus totals used
+// to render a single combined admission card.
+function summarizeEnrollments(enrollments) {
+  const validEmail = (e) =>
+    e && e.includes("@") && e.includes(".") && !e.includes("@whatsapp.temp");
+
+  const studentName =
+    enrollments.map((e) => e.student_name).find(Boolean) || "-";
+
+  const studentEmail =
+    enrollments.map((e) => e.student_email).find(validEmail) || "-";
+
+  const studentWhatsapp =
+    enrollments.map((e) => e.student_whatsapp).find(Boolean) || "-";
+
+  const dates = enrollments
+    .map((e) => e.enrollment_date || e.created_date)
+    .filter(Boolean)
+    .map((d) => new Date(d))
+    .filter((d) => !isNaN(d));
+
+  const earliestDate = dates.length
+    ? new Date(Math.min(...dates.map((d) => d.getTime())))
+    : new Date();
+
+  const courses = enrollments.map((e) => ({
+    id: e.id,
+    course_name: e.course_name || "-",
+    tutor_name: e.tutor_name || "-",
+    amount_paid: Number(e.amount_paid || 0),
+    transaction_id: e.payment_transaction_id || "",
+    date: e.enrollment_date || e.created_date
+      ? new Date(e.enrollment_date || e.created_date)
+      : null,
+  }));
+
+  const totalMonthly = courses.reduce((sum, c) => sum + c.amount_paid, 0);
+
+  return { studentName, studentEmail, studentWhatsapp, earliestDate, courses, totalMonthly };
+}
+
+export default function AdmissionCardModal({ enrollments, open, onOpenChange }) {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  if (!enrollment) return null;
+  if (!enrollments || enrollments.length === 0) return null;
 
-  const enrollmentDate = new Date(enrollment.enrollment_date || enrollment.created_date).toLocaleDateString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric"
-  });
+  const summary = summarizeEnrollments(enrollments);
+
+  const formatDate = (d) =>
+    d
+      ? d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+      : "-";
 
   const handleDownloadPDF = async () => {
     setIsGenerating(true);
@@ -70,7 +115,7 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 15;
 
-      // Header band (slightly taller to fit the website line)
+      // Header band
       const headerHeight = 34;
       doc.setFillColor(21, 101, 192);
       doc.rect(0, 0, pageWidth, headerHeight, "F");
@@ -89,12 +134,12 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
       doc.setFont("helvetica", "normal");
       doc.text("  |  acadcoachingcenter@gmail.com  |  +91-9790818436", margin + 27 + doc.getTextWidth(ACAD_WEBSITE), 25);
 
-      // Card border
+      // Student summary box
       let y = headerHeight + 8;
-      const cardHeight = 60;
+      const summaryHeight = 40;
       doc.setDrawColor(21, 101, 192);
       doc.setLineWidth(0.6);
-      doc.roundedRect(margin, y, pageWidth - 2 * margin, cardHeight, 3, 3);
+      doc.roundedRect(margin, y, pageWidth - 2 * margin, summaryHeight, 3, 3);
 
       doc.setTextColor(30, 30, 30);
       doc.setFont("helvetica", "bold");
@@ -114,33 +159,92 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      const details = [
-        ["Student Name", enrollment.student_name || "-"],
-        ["Email", enrollment.student_email || "-"],
-        ["WhatsApp", enrollment.student_whatsapp || "-"],
-        ["Course", enrollment.course_name || "-"],
-        ["Tutor(s)", enrollment.tutor_name || "-"],
-        ["Amount (Monthly)", `Rs. ${enrollment.amount_paid?.toLocaleString("en-IN") || 0} / month`],
-        ["Transaction ID", enrollment.payment_transaction_id || "-"],
-        ["Enrollment Date", enrollmentDate],
-        ["Status", "ACTIVE (Admitted)"]
+      const studentDetails = [
+        ["Student Name", summary.studentName],
+        ["Email", summary.studentEmail],
+        ["WhatsApp", summary.studentWhatsapp],
+        ["Status", "ACTIVE (Admitted)"],
+        ["Enrolled Since", formatDate(summary.earliestDate)],
       ];
 
       let detailY = y + 15;
       const detailMaxWidth = photoX - (margin + 5) - 3;
-      details.forEach(([label, value]) => {
+      studentDetails.forEach(([label, value]) => {
         doc.setFont("helvetica", "bold");
         doc.text(`${label}:`, margin + 5, detailY);
         doc.setFont("helvetica", "normal");
-        const valueLines = doc.splitTextToSize(String(value), detailMaxWidth - 37);
-        doc.text(valueLines, margin + 42, detailY);
+        const valueLines = doc.splitTextToSize(String(value), detailMaxWidth - 32);
+        doc.text(valueLines, margin + 37, detailY);
         detailY += 4.5;
       });
 
+      // Courses table
+      y = y + summaryHeight + 6;
+      const colX = {
+        course: margin + 3,
+        tutor: margin + 68,
+        amount: margin + 118,
+        since: margin + 143,
+      };
+      const colWidth = {
+        course: 62,
+        tutor: 47,
+        amount: 22,
+        since: 25,
+      };
+
+      doc.setFillColor(232, 240, 253);
+      doc.rect(margin, y, pageWidth - 2 * margin, 7, "F");
+      doc.setDrawColor(21, 101, 192);
+      doc.setLineWidth(0.4);
+      doc.rect(margin, y, pageWidth - 2 * margin, 7);
+      doc.setTextColor(21, 101, 192);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("Course", colX.course, y + 5);
+      doc.text("Tutor(s)", colX.tutor, y + 5);
+      doc.text("Rs./month", colX.amount, y + 5);
+      doc.text("Since", colX.since, y + 5);
+
+      y += 7;
+      const tableTop = y;
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.setFontSize(8.5);
+
+      summary.courses.forEach((course) => {
+        const courseLines = doc.splitTextToSize(course.course_name, colWidth.course - 2);
+        const tutorLines = doc.splitTextToSize(course.tutor_name, colWidth.tutor - 2);
+        const rowHeight = Math.max(courseLines.length, tutorLines.length) * 3.8 + 3;
+
+        doc.text(courseLines, colX.course, y + 4.5);
+        doc.text(tutorLines, colX.tutor, y + 4.5);
+        doc.text(`Rs.${course.amount_paid.toLocaleString("en-IN")}`, colX.amount, y + 4.5);
+        doc.text(formatDate(course.date), colX.since, y + 4.5);
+
+        y += rowHeight;
+        doc.setDrawColor(225, 229, 235);
+        doc.setLineWidth(0.2);
+        doc.line(margin, y, pageWidth - margin, y);
+      });
+
+      // Total row
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(21, 101, 192);
+      doc.text("TOTAL (monthly)", colX.course, y + 5);
+      doc.text(`Rs.${summary.totalMonthly.toLocaleString("en-IN")}`, colX.amount, y + 5);
+      y += 8;
+
+      doc.setDrawColor(21, 101, 192);
+      doc.setLineWidth(0.5);
+      doc.rect(margin, tableTop - 7, pageWidth - 2 * margin, y - (tableTop - 7));
+
       // T&C section
-      y = headerHeight + 8 + cardHeight + 10;
+      y += 6;
       doc.setFillColor(245, 247, 250);
-      doc.roundedRect(margin, y, pageWidth - 2 * margin, 175, 3, 3, "F");
+      const tcBoxHeight = Math.max(120, pageHeight - y - 40);
+      doc.roundedRect(margin, y, pageWidth - 2 * margin, tcBoxHeight, 3, 3, "F");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(21, 101, 192);
@@ -156,8 +260,14 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
         tcY += lines.length * 3.8 + 1;
       });
 
-      // Signature row
-      const sigY = pageHeight - 30;
+      // If the course table pushed content close to the page bottom, add a
+      // new page for the signature block rather than overlapping it.
+      let sigY = pageHeight - 30;
+      if (y + tcBoxHeight > pageHeight - 35) {
+        doc.addPage();
+        sigY = pageHeight - 30;
+      }
+
       doc.setDrawColor(120, 120, 120);
       doc.setLineWidth(0.3);
       doc.line(margin + 10, sigY, margin + 70, sigY);
@@ -167,12 +277,11 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
       doc.text("Parent / Guardian Signature", margin + 10, sigY + 5);
       doc.text("Authorized Signatory (ACAD)", pageWidth - margin - 70, sigY + 5);
 
-      // Footer
       doc.setFontSize(7);
       doc.setTextColor(130, 130, 130);
       doc.text(`${ACAD_WEBSITE}  •  This is a computer-generated admission card and does not require a physical seal.`, pageWidth / 2, pageHeight - 8, { align: "center" });
 
-      const fileName = `Admission_${(enrollment.student_name || "student").replace(/\s+/g, "_")}.pdf`;
+      const fileName = `Admission_${(summary.studentName || "student").replace(/\s+/g, "_")}.pdf`;
       doc.save(fileName);
     } catch (error) {
       console.error("PDF generation error:", error);
@@ -209,18 +318,43 @@ export default function AdmissionCardModal({ enrollment, open, onOpenChange }) {
               Student<br />Photo
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <p><strong>Student:</strong> {enrollment.student_name || "-"}</p>
+          <div className="grid grid-cols-2 gap-2 text-sm mb-4">
+            <p><strong>Student:</strong> {summary.studentName}</p>
             <p><strong>Status:</strong> <span className="text-green-600 font-semibold">ACTIVE</span></p>
-            <p><strong>Email:</strong> {enrollment.student_email || "-"}</p>
-            <p><strong>WhatsApp:</strong> {enrollment.student_whatsapp || "-"}</p>
-            <p><strong>Course:</strong> {enrollment.course_name || "-"}</p>
-            <p><strong>Tutor(s):</strong> {enrollment.tutor_name || "-"}</p>
-            <p><strong>Amount:</strong> ₹{enrollment.amount_paid?.toLocaleString("en-IN") || 0}<span className="text-slate-500">/month</span></p>
-            <p><strong>Date:</strong> {enrollmentDate}</p>
-            {enrollment.payment_transaction_id && (
-              <p className="col-span-2"><strong>Transaction ID:</strong> {enrollment.payment_transaction_id}</p>
-            )}
+            <p><strong>Email:</strong> {summary.studentEmail}</p>
+            <p><strong>WhatsApp:</strong> {summary.studentWhatsapp}</p>
+            <p className="col-span-2"><strong>Enrolled Since:</strong> {formatDate(summary.earliestDate)}</p>
+          </div>
+
+          {/* Courses table */}
+          <div className="border border-blue-200 rounded-lg overflow-hidden mb-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-blue-50 text-blue-700">
+                  <th className="text-left px-3 py-2 font-semibold">Course</th>
+                  <th className="text-left px-3 py-2 font-semibold">Tutor(s)</th>
+                  <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">₹/month</th>
+                  <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Since</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.courses.map((course) => (
+                  <tr key={course.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2 align-top">{course.course_name}</td>
+                    <td className="px-3 py-2 align-top">{course.tutor_name}</td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap">₹{course.amount_paid.toLocaleString("en-IN")}</td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap">{formatDate(course.date)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-blue-200 bg-blue-50 font-semibold text-blue-700">
+                  <td className="px-3 py-2" colSpan={2}>TOTAL (monthly)</td>
+                  <td className="px-3 py-2 whitespace-nowrap">₹{summary.totalMonthly.toLocaleString("en-IN")}</td>
+                  <td className="px-3 py-2"></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
 
           <div className="mt-4 bg-slate-50 p-3 rounded">
