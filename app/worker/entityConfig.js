@@ -57,7 +57,7 @@ export const ENTITY_CONFIG = {
   },
   LiveClass: {
     table: "live_classes",
-    columns: ["course_id", "tutor_id", "title", "description", "scheduled_date", "duration_minutes", "meeting_link", "recording_url", "whiteboard_data", "status", "attendees", "materials"],
+    columns: ["course_id", "tutor_id", "title", "description", "scheduled_date", "duration_minutes", "meeting_link", "recording_url", "whiteboard_data", "status", "attendees", "materials", "covered_portions"],
     arrayFields: ["attendees", "materials"],
     boolFields: [],
   },
@@ -73,39 +73,20 @@ export const ENTITY_CONFIG = {
   // Admin-managed list of external learning websites/tools shown in the
   // "Learning Websites" sidebar section for tutors and students. Replaces
   // what used to be a hardcoded array in Layout.jsx.
-  // NOTE: this was already registered in worker/entityConfig.js and consumed
-  // by the frontend (Layout.jsx, AdminLearningResources.jsx) but missing from
-  // THIS deployed copy and from schema.sql -- restored here to match, with
-  // the learning_resources table added to schema.sql in the same change.
   LearningResource: {
     table: "learning_resources",
     columns: ["title", "url", "display_order", "is_active"],
     arrayFields: [],
     boolFields: ["is_active"],
   },
-  // Self-grade practice questions for "GradeMe". AI-drafted from SchoolBook's
-  // ingested NCERT content and held as status="pending" until an admin
-  // approves them (status="approved") -- see grademe.js.
-  GradeMeQuestion: {
-    table: "grademe_questions",
-    columns: ["subject", "chapter", "chapter_title", "question", "options", "correct_index", "explanation", "difficulty", "status", "source"],
-    arrayFields: ["options"],
-    boolFields: [],
-  },
-  // Tutor-logged record of what was actually taught, when, in which course --
-  // feeds the weekly test generator so it targets recently-covered material.
-  TopicLog: {
-    table: "topic_logs",
-    columns: ["course_id", "tutor_id", "subject", "chapter", "chapter_title", "class_date", "notes"],
+  // Standalone log-book entries tutors add for what they covered in a
+  // class. Deliberately NOT tied to a specific LiveClass row, so a tutor
+  // can add/edit an entry for any past date at any time (e.g. backfilling
+  // a class they forgot to log right after it happened).
+  ClassLog: {
+    table: "class_logs",
+    columns: ["tutor_id", "tutor_name", "log_date", "class_name", "chapter", "topics_covered"],
     arrayFields: [],
-    boolFields: [],
-  },
-  // AI-drafted weekly test for one course, built from its recent TopicLog
-  // entries. status="pending" until an admin approves it for students.
-  WeeklyPaper: {
-    table: "weekly_papers",
-    columns: ["course_id", "exam_type", "title", "topics_covered", "total_questions", "duration_minutes", "marks_correct", "marks_wrong", "questions", "status", "source"],
-    arrayFields: ["topics_covered", "questions"],
     boolFields: [],
   },
   MockTest: {
@@ -192,6 +173,18 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: [],
   },
+  // One row per (enrollment, period_month) recording that a monthly fee was
+  // collected. Created when admin marks an item paid on the "Fees Due"
+  // panel. Due status itself is NOT stored here -- the panel computes who's
+  // due by comparing today against each active Enrollment's enrollment_date
+  // day-of-month, then checks this table to see which (enrollment,
+  // period_month) pairs already have a row. period_month is 'YYYY-MM'.
+  FeePayment: {
+    table: "fee_payments",
+    columns: ["enrollment_id", "student_id", "student_name", "student_email", "student_whatsapp", "course_id", "course_name", "tutor_name", "period_month", "due_date", "amount_paid", "payment_transaction_id", "paid_date", "notes"],
+    arrayFields: [],
+    boolFields: [],
+  },
   User: {
     table: "users",
     columns: ["email", "full_name", "phone", "user_type", "is_verified", "grade_class", "school_name", "syllabus", "subjects_interested", "location", "profile_image", "bio", "qualifications", "subjects_teaching", "experience_years", "hourly_rate", "rating", "total_students", "children_ids"],
@@ -201,7 +194,7 @@ export const ENTITY_CONFIG = {
 };
 
 // Entities anyone can READ without logging in (public catalog / marketing pages)
-export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel", "Topic", "Review", "MockTest", "LearningResource"]);
+export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel", "Topic", "Review", "MockTest"]);
 
 // Entities anyone can CREATE without logging in (public intake forms)
 export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"]);
@@ -209,10 +202,7 @@ export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"])
 // Financial-record entities: only admins may create/update/delete these,
 // regardless of who's logged in. (List/read still just requires login,
 // same as every other non-public entity.)
-// GradeMeQuestion: only admins can create (trigger AI drafting) or update
-// (approve/reject/edit) -- students only ever read approved rows via the
-// generic filter route, which just requires being logged in.
-export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "GradeMeQuestion", "WeeklyPaper"]);
+export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "FeePayment"]);
 
 // NOTE: base44's original per-entity read/write permission rules lived in the base44
 // dashboard and were NOT included in the code export, so these lists are a reasonable
