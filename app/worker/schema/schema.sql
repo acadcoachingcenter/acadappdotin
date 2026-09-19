@@ -526,3 +526,36 @@ CREATE TABLE IF NOT EXISTS topic_logs (
 -- the query the weekly generator will run.
 CREATE INDEX IF NOT EXISTS idx_topic_logs_course_date
   ON topic_logs (course_id, class_date);
+
+-- Entity: FeePayment
+-- Monthly fee payment log for the admin "Fees Due" panel. One row per
+-- (enrollment_id, period_month) is created when admin marks a month's fee
+-- as collected. Due status is NOT stored here -- it's computed on the fly
+-- from each active Enrollment's enrollment_date (the day-of-month is the
+-- recurring due day), then cross-checked against this table to see which
+-- periods are already paid. period_month is 'YYYY-MM'.
+CREATE TABLE IF NOT EXISTS fee_payments (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  enrollment_id TEXT,
+  student_id TEXT,
+  student_name TEXT,
+  student_email TEXT,
+  student_whatsapp TEXT,
+  course_id TEXT,
+  course_name TEXT,
+  tutor_name TEXT,
+  period_month TEXT,
+  due_date TEXT,
+  amount_paid REAL,
+  payment_transaction_id TEXT,
+  paid_date TEXT,
+  notes TEXT
+);
+
+-- Fast lookup for "has this enrollment already been paid for this period" --
+-- the exact check the Fees Due panel runs for every active enrollment.
+CREATE INDEX IF NOT EXISTS idx_fee_payments_enrollment_period
+  ON fee_payments (enrollment_id, period_month);
