@@ -20,9 +20,13 @@ const TERMS_AND_CONDITIONS = [
 const ACAD_LOGO_URL = "https://media.base44.com/images/public/689c76e2ab454d53f6e29bd5/c9bd2f11c_ACADLOGONEW.png";
 const ACAD_WEBSITE = "acadapp.in";
 
-// Loads the logo and returns a circular-clipped PNG data URL (transparent
-// corners) so it renders as a circle in jsPDF too, not just in the browser
-// preview (where CSS rounded-full did the clipping for free).
+// Loads the logo and returns a square-cropped PNG data URL. Earlier this
+// also clipped the canvas to a circle (transparent corners), but PNG alpha
+// doesn't reliably survive jsPDF's image embedding across versions - some
+// builds flatten transparent pixels to opaque white, which is why the logo
+// came out square in the downloaded PDF despite looking round on screen.
+// Rounding now happens with a real PDF vector clip path - see
+// drawCircularImage below - which doesn't depend on transparency at all.
 async function loadImageAsDataURL(url) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -34,22 +38,40 @@ async function loadImageAsDataURL(url) {
       canvas.height = size;
       const ctx = canvas.getContext("2d");
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
-
       const offsetX = (img.naturalWidth - size) / 2;
       const offsetY = (img.naturalHeight - size) / 2;
       ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
-      ctx.restore();
 
       resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = () => resolve(null);
     img.src = url;
   });
+}
+
+// Draws a square logo image clipped to a circle using the PDF's own vector
+// clip path (save graphics state -> add circular path -> clip -> draw image
+// -> restore). This is independent of PNG transparency support, so it
+// renders as a true circle in every PDF viewer.
+function drawCircularLogo(doc, dataUrl, x, y, diameter) {
+  const radius = diameter / 2;
+  const cx = x + radius;
+  const cy = y + radius;
+
+  try {
+    doc.saveGraphicsState();
+    doc.circle(cx, cy, radius, null);
+    doc.clip();
+    doc.discardPath();
+    doc.addImage(dataUrl, "PNG", x, y, diameter, diameter);
+    doc.restoreGraphicsState();
+  } catch (e) {
+    // Older jsPDF builds without clip()/saveGraphicsState support: fall
+    // back to an unclipped square rather than failing the whole PDF.
+    try {
+      doc.addImage(dataUrl, "PNG", x, y, diameter, diameter);
+    } catch (e2) { /* skip logo entirely */ }
+  }
 }
 
 // Merges the shared student-level fields across a group of enrollments
@@ -120,7 +142,7 @@ export default function AdmissionCardModal({ enrollments, open, onOpenChange }) 
       doc.setFillColor(21, 101, 192);
       doc.rect(0, 0, pageWidth, headerHeight, "F");
       if (logoDataUrl) {
-        try { doc.addImage(logoDataUrl, "PNG", margin, 5, 22, 22); } catch (e) { /* skip logo */ }
+        drawCircularLogo(doc, logoDataUrl, margin, 5, 22);
       }
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
