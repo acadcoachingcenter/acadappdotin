@@ -173,6 +173,18 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: [],
   },
+  // One row per (enrollment, period_month) recording that a monthly fee was
+  // collected. Created when admin marks an item paid on the "Fees Due"
+  // panel. Due status itself is NOT stored here -- the panel computes who's
+  // due by comparing today against each active Enrollment's enrollment_date
+  // day-of-month, then checks this table to see which (enrollment,
+  // period_month) pairs already have a row. period_month is 'YYYY-MM'.
+  FeePayment: {
+    table: "fee_payments",
+    columns: ["enrollment_id", "student_id", "student_name", "student_email", "student_whatsapp", "course_id", "course_name", "tutor_name", "period_month", "due_date", "amount_paid", "payment_transaction_id", "paid_date", "notes"],
+    arrayFields: [],
+    boolFields: [],
+  },
   User: {
     table: "users",
     columns: ["email", "full_name", "phone", "user_type", "is_verified", "grade_class", "school_name", "syllabus", "subjects_interested", "location", "profile_image", "bio", "qualifications", "subjects_teaching", "experience_years", "hourly_rate", "rating", "total_students", "children_ids"],
@@ -190,7 +202,7 @@ export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"])
 // Financial-record entities: only admins may create/update/delete these,
 // regardless of who's logged in. (List/read still just requires login,
 // same as every other non-public entity.)
-export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense"]);
+export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "FeePayment"]);
 
 // NOTE: base44's original per-entity read/write permission rules lived in the base44
 // dashboard and were NOT included in the code export, so these lists are a reasonable
