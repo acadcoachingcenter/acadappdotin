@@ -49,12 +49,10 @@
  */
 import AcademicEssentials from './pages/AcademicEssentials';
 import AdminCourseManagement from './pages/AdminCourseManagement';
-import AdminClassroomLinks from './pages/AdminClassroomLinks';
-import AdminLearningResources from './pages/AdminLearningResources';
-import AdminWeeklyCoverage from './pages/AdminWeeklyCoverage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminEnrollmentManagement from './pages/AdminEnrollmentManagement';
 import AdminEventManagement from './pages/AdminEventManagement';
+import AdminFeesDue from './pages/AdminFeesDue';
 import AdminInquiryManagement from './pages/AdminInquiryManagement';
 import AdminTutorManagement from './pages/AdminTutorManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
@@ -74,12 +72,11 @@ import MyStudyMaterials from './pages/MyStudyMaterials';
 import MyTuitionRequests from './pages/MyTuitionRequests';
 import NeetJeeSupport from './pages/NeetJeeSupport';
 import Onboarding from './pages/Onboarding';
-import OnlineClassroom from './pages/OnlineClassroom';
-import WeeklyMockTest from './pages/WeeklyMockTest';
 import ParentDashboard from './pages/ParentDashboard';
 import PostTuitionRequest from './pages/PostTuitionRequest';
 import Profile from './pages/Profile';
 import RegisterInquiry from './pages/RegisterInquiry';
+import ScheduleClass from './pages/ScheduleClass';
 import Settings from './pages/Settings';
 import StudentDashboard from './pages/StudentDashboard';
 import SupportUs from './pages/SupportUs';
@@ -91,12 +88,10 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "AcademicEssentials": AcademicEssentials,
     "AdminCourseManagement": AdminCourseManagement,
-    "AdminClassroomLinks": AdminClassroomLinks,
-    "AdminLearningResources": AdminLearningResources,
-    "AdminWeeklyCoverage": AdminWeeklyCoverage,
     "AdminDashboard": AdminDashboard,
     "AdminEnrollmentManagement": AdminEnrollmentManagement,
     "AdminEventManagement": AdminEventManagement,
+    "AdminFeesDue": AdminFeesDue,
     "AdminInquiryManagement": AdminInquiryManagement,
     "AdminTutorManagement": AdminTutorManagement,
     "AttendanceManagement": AttendanceManagement,
@@ -116,12 +111,11 @@ export const PAGES = {
     "MyTuitionRequests": MyTuitionRequests,
     "NeetJeeSupport": NeetJeeSupport,
     "Onboarding": Onboarding,
-    "OnlineClassroom": OnlineClassroom,
-    "WeeklyMockTest": WeeklyMockTest,
     "ParentDashboard": ParentDashboard,
     "PostTuitionRequest": PostTuitionRequest,
     "Profile": Profile,
     "RegisterInquiry": RegisterInquiry,
+    "ScheduleClass": ScheduleClass,
     "Settings": Settings,
     "StudentDashboard": StudentDashboard,
     "SupportUs": SupportUs,

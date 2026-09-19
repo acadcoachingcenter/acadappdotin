@@ -1,86 +1,52 @@
-// Drop-in replacement for base44's generated client.
-// Talks to the ACAD Cloudflare Worker API.
+// Cloudflare API client for ACAD.
+// Connects the React frontend to the ACAD Cloudflare Worker API.
 
 const API_BASE =
   import.meta.env.VITE_API_BASE ||
   "http://localhost:8787";
 
-
-async function apiFetch(
-  path,
-  options = {}
-) {
-  const res = await fetch(
-    `${API_BASE}${path}`,
-    {
-      credentials: "include",
-
-      headers: {
-        "Content-Type":
-          "application/json",
-
-        ...(options.headers || {}),
-      },
-
-      ...options,
-    }
-  );
-
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
 
   if (!res.ok) {
-
-    let message =
-      res.statusText;
+    let message = res.statusText;
 
     try {
-
-      const body =
-        await res.json();
-
-      message =
-        body.error ||
-        message;
-
+      const body = await res.json();
+      message = body.error || message;
     } catch {
-      // Keep HTTP status text.
+      // Keep HTTP status text if response is not JSON.
     }
 
-
-    const err =
-      new Error(message);
-
-    err.status =
-      res.status;
-
+    const err = new Error(message);
+    err.status = res.status;
     throw err;
   }
-
 
   if (res.status === 204) {
     return null;
   }
 
-
   return res.json();
 }
 
-
-/*
- * ACAD entities.
- */
 const ENTITY_NAMES = [
   "Assignment",
   "Attendance",
   "BookPurchase",
-  "ClassLog",
   "Course",
   "Enrollment",
   "Event",
   "ExamLevel",
-  "Expense",
   "HomeTutor",
   "Inquiry",
-  "LearningResource",
   "LiveClass",
   "MockTest",
   "OnlineBook",
@@ -89,366 +55,178 @@ const ENTITY_NAMES = [
   "StudentProgress",
   "StudentSubmission",
   "StudyMaterial",
-  "SubjectClassroom",
   "Submission",
   "Topic",
   "TuitionRequest",
   "TutorInterest",
-  "TutorPayment",
   "User",
+  // Monthly fee payment log for the admin "Fees Due" panel -- one row per
+  // (enrollment, period_month) created when a month's fee is marked paid.
+  "FeePayment",
 ];
 
-
-function makeEntityClient(
-  name
-) {
-
+function makeEntityClient(name) {
   return {
-
-    list: (
-      sort,
-      limit
-    ) => {
-
-      const params =
-        new URLSearchParams();
+    list: (sort, limit) => {
+      const params = new URLSearchParams();
 
       if (sort) {
-        params.set(
-          "sort",
-          sort
-        );
+        params.set("sort", sort);
       }
 
       if (limit) {
-        params.set(
-          "limit",
-          String(limit)
-        );
+        params.set("limit", String(limit));
       }
 
-      const qs =
-        params.toString();
+      const qs = params.toString();
 
       return apiFetch(
-        `/api/entities/${name}${
-          qs ? `?${qs}` : ""
-        }`,
-        {
-          // Without this, the browser (or an intermediate cache) can serve
-          // a stale GET response right after a write - e.g. a class list
-          // still showing "no Meet link" immediately after a sync just
-          // wrote one, until a manual page reload bypasses the cache.
-          cache: "no-store",
-        }
+        `/api/entities/${name}${qs ? `?${qs}` : ""}`
       );
     },
 
-
-    filter: (
-      query = {},
-      sort,
-      limit
-    ) =>
-      apiFetch(
-        `/api/entities/${name}/filter`,
-        {
-          method: "POST",
-
-          body: JSON.stringify({
-            query,
-            sort,
-            limit,
-          }),
-        }
-      ),
-
+    filter: (query = {}, sort, limit) =>
+      apiFetch(`/api/entities/${name}/filter`, {
+        method: "POST",
+        body: JSON.stringify({
+          query,
+          sort,
+          limit,
+        }),
+      }),
 
     get: (id) =>
-      apiFetch(
-        `/api/entities/${name}/${id}`
-      ),
-
+      apiFetch(`/api/entities/${name}/${id}`),
 
     create: (data) =>
-      apiFetch(
-        `/api/entities/${name}`,
-        {
-          method: "POST",
+      apiFetch(`/api/entities/${name}`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
 
-          body:
-            JSON.stringify(data),
-        }
-      ),
-
-
-    update: (
-      id,
-      data
-    ) =>
-      apiFetch(
-        `/api/entities/${name}/${id}`,
-        {
-          method: "PUT",
-
-          body:
-            JSON.stringify(data),
-        }
-      ),
-
+    update: (id, data) =>
+      apiFetch(`/api/entities/${name}/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
 
     delete: (id) =>
-      apiFetch(
-        `/api/entities/${name}/${id}`,
-        {
-          method: "DELETE",
-        }
-      ),
+      apiFetch(`/api/entities/${name}/${id}`, {
+        method: "DELETE",
+      }),
 
-
-    updateMany: (
-      query,
-      update
-    ) =>
-      apiFetch(
-        `/api/entities/${name}/bulk`,
-        {
-          method: "PUT",
-
-          body:
-            JSON.stringify({
-              query,
-              update,
-            }),
-        }
-      ),
+    updateMany: (query, update) =>
+      apiFetch(`/api/entities/${name}/bulk`, {
+        method: "PUT",
+        body: JSON.stringify({
+          query,
+          update,
+        }),
+      }),
   };
 }
 
+const entities = Object.fromEntries(
+  ENTITY_NAMES.map((name) => [
+    name,
+    makeEntityClient(name),
+  ])
+);
 
-const entities =
-  Object.fromEntries(
-    ENTITY_NAMES.map(
-      (name) => [
-        name,
-        makeEntityClient(name),
-      ]
-    )
-  );
-
-
-/*
- * Authentication.
- */
 const auth = {
-
   me: () =>
-    apiFetch(
-      "/api/auth/me"
-    ),
+    apiFetch("/api/auth/me"),
 
+  isAuthenticated: async () => {
+    try {
+      await apiFetch("/api/auth/me");
+      return true;
+    } catch {
+      return false;
+    }
+  },
 
-  isAuthenticated:
-    async () => {
+  updateMe: (data) =>
+    apiFetch("/api/auth/me", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-      try {
+  logout: async (redirectUrl) => {
+    try {
+      await apiFetch("/api/auth/logout", {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error("Logout request failed:", error);
+    }
 
-        await apiFetch(
-          "/api/auth/me"
-        );
+    window.location.href = redirectUrl || "/";
+  },
 
-        return true;
+  redirectToLogin: (returnUrl) => {
+    const target =
+      returnUrl || window.location.href;
 
-      } catch {
-
-        return false;
-      }
-    },
-
-
-  updateMe: (
-    data
-  ) =>
-    apiFetch(
-      "/api/auth/me",
-      {
-        method: "PUT",
-
-        body:
-          JSON.stringify(data),
-      }
-    ),
-
-
-  logout:
-    async (
-      redirectUrl
-    ) => {
-
-      await apiFetch(
-        "/api/auth/logout",
-        {
-          method: "POST",
-        }
-      ).catch(
-        () => {}
-      );
-
-      window.location.href =
-        redirectUrl || "/";
-    },
-
-
-  /*
-   * Normal Google login.
-   */
-  redirectToLogin:
-    (
-      returnUrl
-    ) => {
-
-      const target =
-        returnUrl ||
-        window.location.href;
-
-      window.location.href =
-        `${API_BASE}/api/auth/google/start?redirect=${encodeURIComponent(
-          target
-        )}`;
-    },
-
+    window.location.href =
+      `${API_BASE}/api/auth/google/start` +
+      `?redirect=${encodeURIComponent(target)}`;
+  },
 };
 
-
-/*
- * Core integrations.
- */
 const Core = {
+  UploadFile: async ({ file }) => {
+    const formData = new FormData();
+    formData.append("file", file);
 
-  UploadFile:
-    async ({
-      file,
-    }) => {
-
-      const formData =
-        new FormData();
-
-      formData.append(
-        "file",
-        file
-      );
-
-
-      const res =
-        await fetch(
-          `${API_BASE}/api/upload`,
-          {
-            method: "POST",
-
-            credentials:
-              "include",
-
-            body:
-              formData,
-          }
-        );
-
-
-      if (!res.ok) {
-        throw new Error(
-          "File upload failed"
-        );
+    const res = await fetch(
+      `${API_BASE}/api/upload`,
+      {
+        method: "POST",
+        credentials: "include",
+        body: formData,
       }
+    );
 
+    if (!res.ok) {
+      throw new Error("File upload failed");
+    }
 
-      return res.json();
-    },
+    return res.json();
+  },
 
+  SendEmail: (payload) =>
+    apiFetch("/api/email/send", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
-  SendEmail:
-    (
-      payload
-    ) =>
-      apiFetch(
-        "/api/email/send",
-        {
-          method: "POST",
-
-          body:
-            JSON.stringify(
-              payload
-            ),
-        }
-      ),
-
-
-  InvokeLLM:
-    (
-      payload
-    ) =>
-      apiFetch(
-        "/api/llm/invoke",
-        {
-          method: "POST",
-
-          body:
-            JSON.stringify(
-              payload
-            ),
-        }
-      ),
+  InvokeLLM: (payload) =>
+    apiFetch("/api/llm/invoke", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
 
-
-/*
- * Named backend functions.
- */
 const functionsApi = {
-
-  invoke:
-    (
-      name,
-      payload
-    ) =>
-      apiFetch(
-        `/api/functions/${name}`,
-        {
-          method: "POST",
-
-          body:
-            JSON.stringify(
-              payload
-            ),
-        }
-      ),
+  invoke: (name, payload) =>
+    apiFetch(`/api/functions/${name}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
 
-
-/*
- * Base44-compatible no-op analytics.
- */
+// Optional application analytics logger.
 const appLogs = {
-
-  logUserInApp:
-    () =>
-      Promise.resolve(),
-
+  logUserInApp: () => Promise.resolve(),
 };
-
 
 export const apiClient = {
-
   entities,
-
   auth,
-
   integrations: {
     Core,
   },
-
-  functions:
-    functionsApi,
-
+  functions: functionsApi,
   appLogs,
-
 };

@@ -543,6 +543,15 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
+          title: "Fees Due",
+          url:
+            createPageUrl(
+              "AdminFeesDue"
+            ),
+          icon: IndianRupee,
+        },
+
+        {
           title: "Tutor Management",
           url:
             createPageUrl(

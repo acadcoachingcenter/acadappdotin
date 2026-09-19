@@ -60,6 +60,9 @@ const ENTITY_NAMES = [
   "TuitionRequest",
   "TutorInterest",
   "User",
+  // Monthly fee payment log for the admin "Fees Due" panel -- one row per
+  // (enrollment, period_month) created when a month's fee is marked paid.
+  "FeePayment",
 ];
 
 function makeEntityClient(name) {
