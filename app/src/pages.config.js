@@ -76,7 +76,6 @@ import ParentDashboard from './pages/ParentDashboard';
 import PostTuitionRequest from './pages/PostTuitionRequest';
 import Profile from './pages/Profile';
 import RegisterInquiry from './pages/RegisterInquiry';
-import ScheduleClass from './pages/ScheduleClass';
 import Settings from './pages/Settings';
 import StudentDashboard from './pages/StudentDashboard';
 import SupportUs from './pages/SupportUs';
@@ -115,7 +114,6 @@ export const PAGES = {
     "PostTuitionRequest": PostTuitionRequest,
     "Profile": Profile,
     "RegisterInquiry": RegisterInquiry,
-    "ScheduleClass": ScheduleClass,
     "Settings": Settings,
     "StudentDashboard": StudentDashboard,
     "SupportUs": SupportUs,
