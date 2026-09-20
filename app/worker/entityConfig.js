@@ -185,6 +185,17 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: [],
   },
+  // One row per submission of the "NEET | JEE Intense" Grade 9+ foundation
+  // programme interest modal on the Welcome page. Deliberately a separate
+  // entity from Inquiry -- this programme has its own preferred_path
+  // (NEET/JEE/Both) and grade targeting, and admin follow-up for it is
+  // tracked independently from general inquiries.
+  NeetJeeIntenseRegistration: {
+    table: "neet_jee_intense_registrations",
+    columns: ["student_name", "grade", "parent_name", "mobile", "preferred_path", "message", "consent", "status", "source"],
+    arrayFields: [],
+    boolFields: ["consent"],
+  },
   User: {
     table: "users",
     columns: ["email", "full_name", "phone", "user_type", "is_verified", "grade_class", "school_name", "syllabus", "subjects_interested", "location", "profile_image", "bio", "qualifications", "subjects_teaching", "experience_years", "hourly_rate", "rating", "total_students", "children_ids"],
@@ -197,7 +208,7 @@ export const ENTITY_CONFIG = {
 export const PUBLIC_READ = new Set(["Course", "OnlineBook", "Event", "ExamLevel", "Topic", "Review", "MockTest"]);
 
 // Entities anyone can CREATE without logging in (public intake forms)
-export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor"]);
+export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor", "NeetJeeIntenseRegistration"]);
 
 // Financial-record entities: only admins may create/update/delete these,
 // regardless of who's logged in. (List/read still just requires login,

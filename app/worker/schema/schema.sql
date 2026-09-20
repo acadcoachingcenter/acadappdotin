@@ -559,3 +559,24 @@ CREATE TABLE IF NOT EXISTS fee_payments (
 -- the exact check the Fees Due panel runs for every active enrollment.
 CREATE INDEX IF NOT EXISTS idx_fee_payments_enrollment_period
   ON fee_payments (enrollment_id, period_month);
+
+-- Entity: NeetJeeIntenseRegistration
+-- Public submissions from the "NEET | JEE Intense" Grade 9+ foundation
+-- programme interest modal on the Welcome page. Kept separate from Inquiry
+-- since this programme tracks its own preferred_path (NEET/JEE/Both) and
+-- is followed up on independently by the admin team.
+CREATE TABLE IF NOT EXISTS neet_jee_intense_registrations (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  student_name TEXT,
+  grade TEXT,
+  parent_name TEXT,
+  mobile TEXT,
+  preferred_path TEXT,
+  message TEXT,
+  consent INTEGER,
+  status TEXT DEFAULT 'new',
+  source TEXT
+);

@@ -9,8 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-
 import { GraduationCap, Users, BookOpen, Award, ArrowRight, Star, Play, CheckCircle, Home, Phone, Mail, Clock, User as UserIcon, X, Calendar, Sparkles, QrCode, Download, Share2, MapPin } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -27,6 +25,21 @@ export default function Welcome() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [showBookNotificationModal, setShowBookNotificationModal] = useState(false);
   const [showTutorModal, setShowTutorModal] = useState(false);
+
+  // "NEET | JEE Intense" Grade 9+ foundation programme -- interest modal
+  // state, kept local to Welcome since this is a lightweight public form,
+  // not a full multi-step flow.
+  const [showNeetJeeModal, setShowNeetJeeModal] = useState(false);
+  const [isSubmittingNeetJee, setIsSubmittingNeetJee] = useState(false);
+  const [neetJeeForm, setNeetJeeForm] = useState({
+    student_name: "",
+    grade: "9",
+    parent_name: "",
+    mobile: "",
+    preferred_path: "Explore Both",
+    message: "",
+    consent: false,
+  });
 
   useEffect(() => {
     if (!window._chatbaseLoaded) {
@@ -148,6 +161,56 @@ export default function Welcome() {
     } else {
       navigator.clipboard.writeText(registrationUrl);
       alert('Registration link copied to clipboard!');
+    }
+  };
+
+  const handleNeetJeeFormChange = (field, value) => {
+    setNeetJeeForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleNeetJeeSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!neetJeeForm.student_name.trim() || !neetJeeForm.parent_name.trim() || !neetJeeForm.mobile.trim()) {
+      alert('Please fill in student name, parent/guardian name, and mobile number.');
+      return;
+    }
+
+    if (!neetJeeForm.consent) {
+      alert('Please agree to be contacted by ACAD regarding this programme.');
+      return;
+    }
+
+    setIsSubmittingNeetJee(true);
+    try {
+      await apiClient.entities.NeetJeeIntenseRegistration.create({
+        student_name: neetJeeForm.student_name.trim(),
+        grade: neetJeeForm.grade,
+        parent_name: neetJeeForm.parent_name.trim(),
+        mobile: neetJeeForm.mobile.trim(),
+        preferred_path: neetJeeForm.preferred_path,
+        message: neetJeeForm.message.trim(),
+        consent: true,
+        status: 'new',
+        source: 'welcome_page_modal',
+      });
+
+      setShowNeetJeeModal(false);
+      setNeetJeeForm({
+        student_name: "",
+        grade: "9",
+        parent_name: "",
+        mobile: "",
+        preferred_path: "Explore Both",
+        message: "",
+        consent: false,
+      });
+      alert('Thank you! Your interest in NEET | JEE Intense has been received. Our academic team will contact you shortly.');
+    } catch (error) {
+      console.error('Error submitting NEET | JEE Intense registration:', error);
+      alert('Failed to submit: ' + error.message);
+    } finally {
+      setIsSubmittingNeetJee(false);
     }
   };
 
@@ -293,7 +356,6 @@ export default function Welcome() {
           }
           .animate-pulse-cta { animation: pulseCta 2s ease-in-out infinite; }
         `}
-        
       </style>
 
       <div className="ed-body">
@@ -369,7 +431,7 @@ export default function Welcome() {
     </span>
   </button>
 
-    {/* Student Registration */}
+  {/* Student Registration */}
   <Link
     to={createPageUrl("RegisterInquiry")}
     className="w-full h-full min-w-0 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white hover:from-rose-600 hover:to-orange-600 px-2 shadow-md hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-center font-semibold text-sm sm:text-sm leading-tight animate-pulse-cta"
@@ -400,6 +462,25 @@ export default function Welcome() {
   </button>
 
      </div>
+
+              {/* NEET | JEE Intense - Grade 9 foundation programme CTA banner.
+                  Deliberately separate from the 4-button grid above so it
+                  doesn't disturb that layout; styled distinctly since it
+                  promotes one specific paid programme, not the platform. */}
+              <button
+                onClick={() => setShowNeetJeeModal(true)}
+                className="w-full mt-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-5 py-4 shadow-sm transition-all duration-200 flex items-center justify-between gap-3 text-left"
+                aria-label="Register interest in NEET JEE Intense Grade 9 programme"
+              >
+                <span className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 shrink-0" />
+                  <span>
+                    <span className="block font-bold text-sm sm:text-base">NEET | JEE INTENSE</span>
+                    <span className="block text-xs sm:text-sm text-indigo-100">Grade 9 Batch Registrations Open</span>
+                  </span>
+                </span>
+                <ArrowRight className="w-5 h-5 shrink-0" />
+              </button>
 
               <div className="flex flex-wrap items-center gap-x-8 gap-y-3 mt-10 pt-8 border-t border-slate-200">
                 <div className="flex items-center gap-2">
@@ -915,6 +996,125 @@ export default function Welcome() {
               </div>
             </button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* NEET | JEE Intense - Grade 9 foundation programme interest modal */}
+      <Dialog open={showNeetJeeModal} onOpenChange={setShowNeetJeeModal}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-center">NEET | JEE Intense</DialogTitle>
+            <DialogDescription className="text-center">
+              Grade 9 Foundation Batch - register your interest and our academic team will reach out with schedule and details.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleNeetJeeSubmit} className="space-y-4 mt-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Student Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={neetJeeForm.student_name}
+                onChange={(e) => handleNeetJeeFormChange('student_name', e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Student's full name"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Current Grade *
+              </label>
+              <select
+                value={neetJeeForm.grade}
+                onChange={(e) => handleNeetJeeFormChange('grade', e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="8">Grade 8</option>
+                <option value="9">Grade 9</option>
+                <option value="10">Grade 10</option>
+                <option value="11">Grade 11</option>
+                <option value="12">Grade 12</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Parent / Guardian Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={neetJeeForm.parent_name}
+                onChange={(e) => handleNeetJeeFormChange('parent_name', e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Parent or guardian's name"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Mobile / WhatsApp Number *
+              </label>
+              <input
+                type="tel"
+                required
+                value={neetJeeForm.mobile}
+                onChange={(e) => handleNeetJeeFormChange('mobile', e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="+91 9876543210"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Preferred Path
+              </label>
+              <select
+                value={neetJeeForm.preferred_path}
+                onChange={(e) => handleNeetJeeFormChange('preferred_path', e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="Explore Both">Explore Both</option>
+                <option value="NEET Foundation">NEET Foundation</option>
+                <option value="JEE Foundation">JEE Foundation</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Message / Questions (optional)
+              </label>
+              <textarea
+                value={neetJeeForm.message}
+                onChange={(e) => handleNeetJeeFormChange('message', e.target.value)}
+                rows={2}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Anything you'd like us to know"
+              />
+            </div>
+
+            <label className="flex items-start gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={neetJeeForm.consent}
+                onChange={(e) => handleNeetJeeFormChange('consent', e.target.checked)}
+                className="mt-0.5"
+              />
+              I agree to be contacted by ACAD regarding the NEET | JEE Intense Coaching programme.
+            </label>
+
+            <Button
+              type="submit"
+              disabled={isSubmittingNeetJee}
+              className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700"
+            >
+              {isSubmittingNeetJee ? 'Submitting...' : 'Register for Grade 9 Batch'}
+            </Button>
+          </form>
         </DialogContent>
       </Dialog>
       </div>
