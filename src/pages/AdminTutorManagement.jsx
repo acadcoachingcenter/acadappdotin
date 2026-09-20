@@ -29,6 +29,15 @@ import {
 } from "@/components/ui/select";
 
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+import {
   Search,
   Info,
   RefreshCw,
@@ -36,6 +45,10 @@ import {
   UserCheck,
   UserX,
   UserMinus,
+  Phone,
+  MessageCircle,
+  Pencil,
+  BookOpen,
 } from "lucide-react";
 
 import {
@@ -55,22 +68,10 @@ import {
 ============================================================ */
 
 const USER_TYPES = [
-  {
-    value: "tutor",
-    label: "Tutor",
-  },
-  {
-    value: "student",
-    label: "Student",
-  },
-  {
-    value: "parent",
-    label: "Parent",
-  },
-  {
-    value: "unassigned",
-    label: "Unassigned",
-  },
+  { value: "tutor", label: "Tutor" },
+  { value: "student", label: "Student" },
+  { value: "parent", label: "Parent" },
+  { value: "unassigned", label: "Unassigned" },
 ];
 
 
@@ -79,23 +80,88 @@ const USER_TYPES = [
 ============================================================ */
 
 const ACCOUNT_STATUSES = [
-  {
-    value: "active",
-    label: "Active",
-  },
-  {
-    value: "inactive",
-    label: "Inactive",
-  },
-  {
-    value: "suspended",
-    label: "Suspended",
-  },
-  {
-    value: "deleted",
-    label: "Deleted",
-  },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "suspended", label: "Suspended" },
+  { value: "deleted", label: "Deleted" },
 ];
+
+
+/* ============================================================
+   SUBJECT EXPERTISE
+
+   Stored on the User record as an array of strings in the
+   field `subject_expertise`, e.g. ["Physics", "Mathematics"].
+   Add or remove subjects here to change the choices.
+============================================================ */
+
+const SUBJECT_OPTIONS = [
+  "Physics",
+  "Chemistry",
+  "Botany",
+  "Zoology",
+  "Biology",
+  "Mathematics",
+  "English",
+  "Computer Science",
+];
+
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+/* Accepts an array, a comma-separated string, or nothing. */
+const getUserSubjects = (user) => {
+
+  const raw = user?.subject_expertise;
+
+  if (Array.isArray(raw)) {
+    return raw.filter(Boolean);
+  }
+
+  if (typeof raw === "string" && raw.trim()) {
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+
+};
+
+
+/* Phone can live under a few different field names. */
+const getUserPhone = (user) => {
+
+  return (
+    user?.phone ||
+    user?.phone_number ||
+    user?.mobile ||
+    user?.whatsapp ||
+    ""
+  );
+
+};
+
+
+/* Digits only; a bare 10-digit number is treated as Indian. */
+const getDialNumber = (phone) => {
+
+  const digits = String(phone || "").replace(/\D/g, "");
+
+  if (!digits) {
+    return "";
+  }
+
+  if (digits.length === 10) {
+    return "91" + digits;
+  }
+
+  return digits;
+
+};
 
 
 /* ============================================================
@@ -114,6 +180,9 @@ export default function AdminTutorManagement() {
   const [filterStatus, setFilterStatus] =
     useState("all");
 
+  const [filterSubject, setFilterSubject] =
+    useState("all");
+
   const [isLoading, setIsLoading] =
     useState(true);
 
@@ -124,6 +193,17 @@ export default function AdminTutorManagement() {
     useState(null);
 
   const [isUpdating, setIsUpdating] =
+    useState(false);
+
+  /* Subject editor */
+
+  const [editingUser, setEditingUser] =
+    useState(null);
+
+  const [editSubjects, setEditSubjects] =
+    useState([]);
+
+  const [isSavingSubjects, setIsSavingSubjects] =
     useState(false);
 
 
@@ -190,7 +270,7 @@ export default function AdminTutorManagement() {
 
   /* ==========================================================
      NORMALIZE ACCOUNT STATUS
-     
+
      Existing users without account_status are treated
      as ACTIVE.
   ========================================================== */
@@ -324,6 +404,24 @@ export default function AdminTutorManagement() {
 
 
   /* ==========================================================
+     SUBJECT FILTER CHANGE
+
+     Picking a subject means the admin is looking for a tutor,
+     so switch the role filter to Tutors automatically.
+  ========================================================== */
+
+  const handleSubjectFilterChange = (value) => {
+
+    setFilterSubject(value);
+
+    if (value !== "all") {
+      setFilterType("tutor");
+    }
+
+  };
+
+
+  /* ==========================================================
      FILTER USERS
   ========================================================== */
 
@@ -373,6 +471,21 @@ export default function AdminTutorManagement() {
 
 
     /* --------------------------------------------------------
+       SUBJECT FILTER
+    -------------------------------------------------------- */
+
+    if (filterSubject !== "all") {
+
+      filtered = filtered.filter((user) =>
+        getUserSubjects(user).includes(
+          filterSubject
+        )
+      );
+
+    }
+
+
+    /* --------------------------------------------------------
        SEARCH
     -------------------------------------------------------- */
 
@@ -401,6 +514,12 @@ export default function AdminTutorManagement() {
             .toLowerCase()
             .includes(search)
 
+          ||
+
+          getUserSubjects(user).some((subject) =>
+            subject.toLowerCase().includes(search)
+          )
+
         );
 
       });
@@ -415,6 +534,7 @@ export default function AdminTutorManagement() {
     searchTerm,
     filterType,
     filterStatus,
+    filterSubject,
   ]);
 
 
@@ -600,6 +720,143 @@ export default function AdminTutorManagement() {
       setUpdatingUserId(null);
 
     }
+
+  };
+
+
+  /* ==========================================================
+     SUBJECT EDITOR
+  ========================================================== */
+
+  const openSubjectEditor = (user) => {
+
+    setEditingUser(user);
+
+    setEditSubjects(getUserSubjects(user));
+
+  };
+
+
+  const closeSubjectEditor = () => {
+
+    if (isSavingSubjects) {
+      return;
+    }
+
+    setEditingUser(null);
+
+    setEditSubjects([]);
+
+  };
+
+
+  const toggleEditSubject = (subject) => {
+
+    setEditSubjects((current) =>
+      current.includes(subject)
+        ? current.filter((s) => s !== subject)
+        : [...current, subject]
+    );
+
+  };
+
+
+  const saveSubjects = async () => {
+
+    if (!editingUser) {
+      return;
+    }
+
+
+    setIsSavingSubjects(true);
+
+
+    try {
+
+      await User.update(
+        editingUser.id,
+        {
+          subject_expertise: editSubjects,
+        }
+      );
+
+
+      /* Update the row in place so filters and scroll
+         position are not disturbed by a full reload. */
+
+      setUsers((current) =>
+        current.map((u) =>
+          u.id === editingUser.id
+            ? {
+                ...u,
+                subject_expertise: editSubjects,
+              }
+            : u
+        )
+      );
+
+
+      setEditingUser(null);
+
+      setEditSubjects([]);
+
+
+    } catch (error) {
+
+      console.error(
+        "Error saving subjects:",
+        error
+      );
+
+      alert(
+        "Failed to save subjects: " +
+          (error.message ||
+            "Unknown error")
+      );
+
+    } finally {
+
+      setIsSavingSubjects(false);
+
+    }
+
+  };
+
+
+  /* ==========================================================
+     CONTACT LINKS
+  ========================================================== */
+
+  const getWhatsAppLink = (user) => {
+
+    const number =
+      getDialNumber(getUserPhone(user));
+
+    if (!number) {
+      return "";
+    }
+
+
+    const subjectText =
+      filterSubject !== "all"
+        ? " for a " + filterSubject + " class"
+        : " for a class";
+
+
+    const message =
+      "Hello " +
+      (user.full_name || "") +
+      ", this is ACAD Online Coaching. Are you available" +
+      subjectText +
+      "?";
+
+
+    return (
+      "https://wa.me/" +
+      number +
+      "?text=" +
+      encodeURIComponent(message)
+    );
 
   };
 
@@ -798,9 +1055,9 @@ export default function AdminTutorManagement() {
             text-slate-600
             mt-1
           ">
-            Manage user roles and account
-            status without creating duplicate
-            ACAD accounts.
+            Manage user roles, account status
+            and tutor subject expertise without
+            creating duplicate ACAD accounts.
           </p>
 
         </div>
@@ -882,6 +1139,18 @@ export default function AdminTutorManagement() {
 
             </p>
 
+            <p className="
+              text-sm
+              text-blue-800
+              mt-2
+            ">
+
+              To find a tutor for a class, filter
+              by subject, then call or message
+              them on WhatsApp from their row.
+
+            </p>
+
           </div>
 
         </CardHeader>
@@ -920,6 +1189,7 @@ export default function AdminTutorManagement() {
               flex
               flex-col
               md:flex-row
+              md:flex-wrap
               gap-2
             ">
 
@@ -941,9 +1211,7 @@ export default function AdminTutorManagement() {
                 />
 
                 <Input
-                  placeholder="
-                    Search name, email or ID...
-                  "
+                  placeholder="Search name, email, ID or subject..."
                   value={searchTerm}
                   onChange={(e) =>
                     setSearchTerm(
@@ -1049,6 +1317,50 @@ export default function AdminTutorManagement() {
 
               </Select>
 
+
+              {/* SUBJECT FILTER */}
+
+              <Select
+                value={filterSubject}
+                onValueChange={
+                  handleSubjectFilterChange
+                }
+              >
+
+                <SelectTrigger
+                  className="w-full md:w-48"
+                >
+
+                  <SelectValue />
+
+                </SelectTrigger>
+
+
+                <SelectContent>
+
+                  <SelectItem value="all">
+                    All Subjects
+                  </SelectItem>
+
+                  {SUBJECT_OPTIONS.map(
+                    (subject) => (
+
+                      <SelectItem
+                        key={subject}
+                        value={subject}
+                      >
+
+                        {subject}
+
+                      </SelectItem>
+
+                    )
+                  )}
+
+                </SelectContent>
+
+              </Select>
+
             </div>
 
           </div>
@@ -1121,9 +1433,26 @@ export default function AdminTutorManagement() {
                     "admin";
 
 
+                  const isTutor =
+                    currentType ===
+                    "tutor";
+
+
                   const isUpdatingThisUser =
                     updatingUserId ===
                     user.id;
+
+
+                  const subjects =
+                    getUserSubjects(user);
+
+
+                  const phone =
+                    getUserPhone(user);
+
+
+                  const dialNumber =
+                    getDialNumber(phone);
 
 
                   return (
@@ -1155,7 +1484,7 @@ export default function AdminTutorManagement() {
 
                         <div className="
                           flex
-                          items-center
+                          items-start
                           gap-3
                         ">
 
@@ -1219,6 +1548,20 @@ export default function AdminTutorManagement() {
                             </p>
 
 
+                            {isTutor && phone && (
+
+                              <p className="
+                                text-sm
+                                text-slate-600
+                              ">
+
+                                {phone}
+
+                              </p>
+
+                            )}
+
+
                             <p className="
                               text-xs
                               text-slate-400
@@ -1246,6 +1589,89 @@ export default function AdminTutorManagement() {
 
                             )}
 
+
+                            {/* SUBJECT EXPERTISE (tutors only) */}
+
+                            {isTutor && (
+
+                              <div className="
+                                flex
+                                flex-wrap
+                                items-center
+                                gap-1.5
+                                mt-2
+                              ">
+
+                                <BookOpen className="
+                                  w-4
+                                  h-4
+                                  text-slate-400
+                                " />
+
+                                {subjects.length > 0 ? (
+
+                                  subjects.map(
+                                    (subject) => (
+
+                                      <Badge
+                                        key={subject}
+                                        className={`
+                                          border
+                                          ${
+                                            subject ===
+                                            filterSubject
+                                              ? "bg-blue-600 text-white border-blue-600"
+                                              : "bg-slate-100 text-slate-700 border-slate-200"
+                                          }
+                                        `}
+                                      >
+
+                                        {subject}
+
+                                      </Badge>
+
+                                    )
+                                  )
+
+                                ) : (
+
+                                  <span className="
+                                    text-xs
+                                    text-amber-700
+                                  ">
+
+                                    No subjects set
+
+                                  </span>
+
+                                )}
+
+
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() =>
+                                    openSubjectEditor(
+                                      user
+                                    )
+                                  }
+                                >
+
+                                  <Pencil className="
+                                    w-3
+                                    h-3
+                                    mr-1
+                                  " />
+
+                                  Edit
+
+                                </Button>
+
+                              </div>
+
+                            )}
+
                           </div>
 
                         </div>
@@ -1262,6 +1688,90 @@ export default function AdminTutorManagement() {
                           md:items-center
                           gap-3
                         ">
+
+
+                          {/* CONTACT (tutors only) */}
+
+                          {isTutor && (
+
+                            dialNumber ? (
+
+                              <div className="
+                                flex
+                                items-center
+                                gap-2
+                              ">
+
+                                <Button
+                                  asChild
+                                  variant="outline"
+                                  size="sm"
+                                >
+
+                                  <a
+                                    href={`tel:+${dialNumber}`}
+                                  >
+
+                                    <Phone className="
+                                      w-4
+                                      h-4
+                                      mr-1
+                                    " />
+
+                                    Call
+
+                                  </a>
+
+                                </Button>
+
+
+                                <Button
+                                  asChild
+                                  variant="outline"
+                                  size="sm"
+                                  className="
+                                    text-green-700
+                                    border-green-200
+                                    hover:bg-green-50
+                                  "
+                                >
+
+                                  <a
+                                    href={getWhatsAppLink(
+                                      user
+                                    )}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+
+                                    <MessageCircle className="
+                                      w-4
+                                      h-4
+                                      mr-1
+                                    " />
+
+                                    WhatsApp
+
+                                  </a>
+
+                                </Button>
+
+                              </div>
+
+                            ) : (
+
+                              <span className="
+                                text-xs
+                                text-slate-400
+                              ">
+
+                                No phone number
+
+                              </span>
+
+                            )
+
+                          )}
 
 
                           {/* ROLE BADGE */}
@@ -1476,8 +1986,11 @@ export default function AdminTutorManagement() {
                     text-slate-500
                   ">
 
-                    No users found
-                    for this filter.
+                    {filterSubject !== "all"
+                      ? "No tutors found for " +
+                        filterSubject +
+                        ". Set subjects on a tutor with Edit."
+                      : "No users found for this filter."}
 
                   </p>
 
@@ -1492,6 +2005,131 @@ export default function AdminTutorManagement() {
         </CardContent>
 
       </Card>
+
+
+      {/* ======================================================
+          SUBJECT EXPERTISE DIALOG
+      ======================================================= */}
+
+      <Dialog
+        open={!!editingUser}
+        onOpenChange={(open) => {
+
+          if (!open) {
+            closeSubjectEditor();
+          }
+
+        }}
+      >
+
+        <DialogContent>
+
+          <DialogHeader>
+
+            <DialogTitle>
+              Subject expertise
+            </DialogTitle>
+
+            <DialogDescription>
+
+              Select every subject{" "}
+
+              <strong>
+                {editingUser?.full_name ||
+                  editingUser?.email}
+              </strong>
+
+              {" "}can teach.
+
+            </DialogDescription>
+
+          </DialogHeader>
+
+
+          <div className="
+            flex
+            flex-wrap
+            gap-2
+            py-2
+          ">
+
+            {SUBJECT_OPTIONS.map((subject) => {
+
+              const selected =
+                editSubjects.includes(subject);
+
+              return (
+
+                <button
+                  key={subject}
+                  type="button"
+                  onClick={() =>
+                    toggleEditSubject(subject)
+                  }
+                  aria-pressed={selected}
+                  className={`
+                    px-3
+                    py-1.5
+                    rounded-full
+                    border
+                    text-sm
+                    transition-colors
+                    focus:outline-none
+                    focus-visible:ring-2
+                    focus-visible:ring-blue-500
+                    ${
+                      selected
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                    }
+                  `}
+                >
+
+                  {subject}
+
+                </button>
+
+              );
+
+            })}
+
+          </div>
+
+
+          <DialogFooter>
+
+            <Button
+              variant="outline"
+              onClick={closeSubjectEditor}
+              disabled={isSavingSubjects}
+            >
+
+              Cancel
+
+            </Button>
+
+
+            <Button
+              onClick={saveSubjects}
+              disabled={isSavingSubjects}
+              className="
+                bg-blue-600
+                hover:bg-blue-700
+                text-white
+              "
+            >
+
+              {isSavingSubjects
+                ? "Saving..."
+                : "Save subjects"}
+
+            </Button>
+
+          </DialogFooter>
+
+        </DialogContent>
+
+      </Dialog>
 
 
       {/* ======================================================
