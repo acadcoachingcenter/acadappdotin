@@ -104,6 +104,10 @@ const SUBJECT_OPTIONS = [
   "Mathematics",
   "English",
   "Computer Science",
+  "Hindi",
+  "Accountancy",
+  "Science",
+  "Tamil",
 ];
 
 
