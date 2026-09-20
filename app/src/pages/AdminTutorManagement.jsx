@@ -49,6 +49,8 @@ import {
   MessageCircle,
   Pencil,
   BookOpen,
+  Copy,
+  Check,
 } from "lucide-react";
 
 import {
@@ -90,9 +92,12 @@ const ACCOUNT_STATUSES = [
 /* ============================================================
    SUBJECT EXPERTISE
 
-   Stored on the User record as an array of strings in the
-   field `subject_expertise`, e.g. ["Physics", "Mathematics"].
-   Add or remove subjects here to change the choices.
+   Stored on the User record in the existing `subjects_teaching`
+   array field (already an arrayField in the Worker entityConfig,
+   so no database change is needed).
+   Add or remove subjects here to change the choices. Subjects that
+   tutors already have saved but that are not listed here are still
+   shown and kept.
 ============================================================ */
 
 const SUBJECT_OPTIONS = [
@@ -112,13 +117,27 @@ const SUBJECT_OPTIONS = [
 
 
 /* ============================================================
+   READY-MADE CLASS MESSAGE
+
+   Placeholders:  {name}  = tutor's name
+                  {class} = "Physics class" when a subject filter
+                            is active, otherwise just "class"
+============================================================ */
+
+const DEFAULT_MESSAGE_TEMPLATE =
+  "Hello {name}, this is ACAD Online Coaching. We have a new {class} requirement. Are you available to take it? Please reply with your available timings. Thank you.";
+
+const TEMPLATE_STORAGE_KEY = "acad_tutor_message_template";
+
+
+/* ============================================================
    HELPERS
 ============================================================ */
 
 /* Accepts an array, a comma-separated string, or nothing. */
 const getUserSubjects = (user) => {
 
-  const raw = user?.subject_expertise;
+  const raw = user?.subjects_teaching;
 
   if (Array.isArray(raw)) {
     return raw.filter(Boolean);
@@ -211,6 +230,31 @@ export default function AdminTutorManagement() {
     useState(false);
 
 
+  /* Ready-made message */
+
+  const [messageTemplate, setMessageTemplate] =
+    useState(() => {
+
+      try {
+
+        return (
+          window.localStorage.getItem(
+            TEMPLATE_STORAGE_KEY
+          ) || DEFAULT_MESSAGE_TEMPLATE
+        );
+
+      } catch (e) {
+
+        return DEFAULT_MESSAGE_TEMPLATE;
+
+      }
+
+    });
+
+  const [copiedUserId, setCopiedUserId] =
+    useState(null);
+
+
   /* ==========================================================
      LOAD USERS
   ========================================================== */
@@ -255,6 +299,24 @@ export default function AdminTutorManagement() {
     loadUsers();
 
   }, []);
+
+
+  useEffect(() => {
+
+    try {
+
+      window.localStorage.setItem(
+        TEMPLATE_STORAGE_KEY,
+        messageTemplate
+      );
+
+    } catch (e) {
+
+      /* storage unavailable - template just resets on reload */
+
+    }
+
+  }, [messageTemplate]);
 
 
   /* ==========================================================
@@ -428,6 +490,23 @@ export default function AdminTutorManagement() {
   /* ==========================================================
      FILTER USERS
   ========================================================== */
+
+  /* Listed subjects plus any subject a tutor already has saved. */
+
+  const allSubjects = useMemo(() => {
+
+    const set = new Set(SUBJECT_OPTIONS);
+
+    users.forEach((user) => {
+      getUserSubjects(user).forEach((subject) =>
+        set.add(subject)
+      );
+    });
+
+    return Array.from(set);
+
+  }, [users]);
+
 
   const filteredUsers = useMemo(() => {
 
@@ -780,7 +859,7 @@ export default function AdminTutorManagement() {
       await User.update(
         editingUser.id,
         {
-          subject_expertise: editSubjects,
+          subjects_teaching: editSubjects,
         }
       );
 
@@ -793,7 +872,7 @@ export default function AdminTutorManagement() {
           u.id === editingUser.id
             ? {
                 ...u,
-                subject_expertise: editSubjects,
+                subjects_teaching: editSubjects,
               }
             : u
         )
@@ -831,6 +910,24 @@ export default function AdminTutorManagement() {
      CONTACT LINKS
   ========================================================== */
 
+  const buildMessage = (user) => {
+
+    const classText =
+      filterSubject !== "all"
+        ? filterSubject + " class"
+        : "class";
+
+    return messageTemplate
+      .split("{name}")
+      .join(user.full_name || "there")
+      .split("{class}")
+      .join(classText);
+
+  };
+
+
+  /* WhatsApp with the message already typed in. */
+
   const getWhatsAppLink = (user) => {
 
     const number =
@@ -840,26 +937,65 @@ export default function AdminTutorManagement() {
       return "";
     }
 
-
-    const subjectText =
-      filterSubject !== "all"
-        ? " for a " + filterSubject + " class"
-        : " for a class";
-
-
-    const message =
-      "Hello " +
-      (user.full_name || "") +
-      ", this is ACAD Online Coaching. Are you available" +
-      subjectText +
-      "?";
-
-
     return (
       "https://wa.me/" +
       number +
       "?text=" +
-      encodeURIComponent(message)
+      encodeURIComponent(buildMessage(user))
+    );
+
+  };
+
+
+  /* WhatsApp chat opened empty, to paste the copied message. */
+
+  const getChatLink = (user) => {
+
+    const number =
+      getDialNumber(getUserPhone(user));
+
+    return number
+      ? "https://wa.me/" + number
+      : "";
+
+  };
+
+
+  const copyMessage = async (user) => {
+
+    const text = buildMessage(user);
+
+    try {
+
+      await navigator.clipboard.writeText(text);
+
+    } catch (e) {
+
+      /* Fallback for browsers that block the clipboard API */
+
+      const area =
+        document.createElement("textarea");
+
+      area.value = text;
+
+      document.body.appendChild(area);
+
+      area.select();
+
+      document.execCommand("copy");
+
+      document.body.removeChild(area);
+
+    }
+
+    setCopiedUserId(user.id);
+
+    setTimeout(
+      () =>
+        setCopiedUserId((current) =>
+          current === user.id ? null : current
+        ),
+      2000
     );
 
   };
@@ -1163,6 +1299,65 @@ export default function AdminTutorManagement() {
 
 
       {/* ======================================================
+          CLASS MESSAGE TEMPLATE
+      ======================================================= */}
+
+      <Card>
+
+        <CardHeader>
+
+          <CardTitle className="text-base">
+            Class message for tutors
+          </CardTitle>
+
+          <p className="text-sm text-slate-600">
+            Used by Copy message and WhatsApp on
+            each tutor. Use {"{name}"} for the
+            tutor's name and {"{class}"} for the
+            subject chosen in the subject filter.
+          </p>
+
+        </CardHeader>
+
+        <CardContent className="space-y-2">
+
+          <textarea
+            value={messageTemplate}
+            onChange={(e) =>
+              setMessageTemplate(e.target.value)
+            }
+            rows={3}
+            className="
+              w-full
+              rounded-md
+              border
+              border-slate-300
+              p-3
+              text-sm
+              focus:outline-none
+              focus:ring-2
+              focus:ring-blue-500
+            "
+          />
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              setMessageTemplate(
+                DEFAULT_MESSAGE_TEMPLATE
+              )
+            }
+          >
+            Reset to default
+          </Button>
+
+        </CardContent>
+
+      </Card>
+
+
+      {/* ======================================================
           FILTER CARD
       ======================================================= */}
 
@@ -1346,7 +1541,7 @@ export default function AdminTutorManagement() {
                     All Subjects
                   </SelectItem>
 
-                  {SUBJECT_OPTIONS.map(
+                  {allSubjects.map(
                     (subject) => (
 
                       <SelectItem
@@ -1702,9 +1897,32 @@ export default function AdminTutorManagement() {
 
                               <div className="
                                 flex
+                                flex-wrap
                                 items-center
                                 gap-2
                               ">
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    copyMessage(user)
+                                  }
+                                >
+
+                                  {copiedUserId ===
+                                  user.id ? (
+                                    <Check className="w-4 h-4 mr-1 text-green-600" />
+                                  ) : (
+                                    <Copy className="w-4 h-4 mr-1" />
+                                  )}
+
+                                  {copiedUserId ===
+                                  user.id
+                                    ? "Copied"
+                                    : "Copy message"}
+
+                                </Button>
 
                                 <Button
                                   asChild
@@ -1759,6 +1977,29 @@ export default function AdminTutorManagement() {
                                   </a>
 
                                 </Button>
+
+
+                                <Button
+                                  asChild
+                                  variant="outline"
+                                  size="sm"
+                                >
+
+                                  <a
+                                    href={getChatLink(
+                                      user
+                                    )}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Open the WhatsApp chat without a message, then paste the copied text"
+                                  >
+
+                                    Chat only
+
+                                  </a>
+
+                                </Button>
+
 
                               </div>
 
@@ -2057,7 +2298,7 @@ export default function AdminTutorManagement() {
             py-2
           ">
 
-            {SUBJECT_OPTIONS.map((subject) => {
+            {allSubjects.map((subject) => {
 
               const selected =
                 editSubjects.includes(subject);
