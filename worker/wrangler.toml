@@ -30,6 +30,8 @@ API_URL = "https://api.acadapp.in"
 COOKIE_DOMAIN = ".acadapp.in"
 GROQ_MODEL = "openai/gpt-oss-120b"
 EMAIL_FROM = "ACAD Team <notifications@acadapp.in>"
+TUTOR_ACTIVE_STATUSES = "active"
+TUTOR_COURSE_IDS = "68c394ffb5426ee10668b13c"
 
 # ---- Cron Trigger: weekly NEET/JEE mock test generation ----
 # Runs every Wednesday 10:00 AM IST. Cron times are UTC; IST is UTC+5:30,

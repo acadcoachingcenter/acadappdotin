@@ -35,6 +35,16 @@ import {
 import { invokeLLM } from "./llm.js";
 
 import {
+  tutorAccessHandler,
+  tutorTokenHandler,
+} from "./tutorToken.js";
+
+import {
+  isEnrolledInNeetJee,
+  isNeetJeeTutor,
+} from "./enrollment.js";
+
+import {
   generateGradeMeQuestions,
   fetchAvailableChapters,
   listApprovedTopics,
@@ -223,6 +233,36 @@ app.put(
      */
     delete body.id;
     delete body.email;
+
+    /*
+     * Fields a user must never set on their own account: otherwise anyone could
+     * promote themselves to admin, mark themselves a verified tutor, or reactivate
+     * a deactivated account. Admins change these through the admin pages.
+     */
+    for (const k of [
+      "role", "is_verified", "account_status", "rating", "total_students",
+      "created_by", "created_by_id", "created_date", "updated_date", "is_sample",
+    ]) {
+      delete body[k];
+    }
+
+    /*
+     * user_type may be chosen ONCE (while it is still empty), and never as "admin".
+     */
+    if ("user_type" in body) {
+      const current = await c.env.DB.prepare(
+        "SELECT user_type FROM users WHERE id = ?1"
+      ).bind(user.id).first();
+      const wanted = String(body.user_type || "").toLowerCase();
+      const canChoose =
+        !(current && current.user_type) &&
+        ["student", "parent", "tutor"].includes(wanted);
+      if (canChoose) {
+        body.user_type = wanted;
+      } else {
+        delete body.user_type;
+      }
+    }
 
     const updated =
       await updateEntity(
@@ -1764,6 +1804,41 @@ app.post(
       );
     }
   }
+);
+
+
+/*
+ * ---------- NEET | JEE Smart-Tutor ----------
+ *
+ * tutorAccess : may this user see the "NEET | JEE Smart-Tutor" button?
+ * tutorToken  : short-lived signed token for the tutor Worker; refused unless the user
+ *               is an admin, a verified tutor of the NEET | JEE course, or an enrolled student.
+ *
+ * Registered BEFORE the generic /api/functions/:name route so these are matched first.
+ */
+async function loadTutorUser(c) {
+  const sessionUser = await getSessionUser(c.req.raw, c.env);
+  if (!sessionUser) return null;
+  // read the current row so a just-changed status or verification is honoured
+  const row = await c.env.DB.prepare(
+    "SELECT id, email, full_name, user_type, is_verified, account_status FROM users WHERE id = ?1"
+  ).bind(sessionUser.id).first();
+  return row || null;
+}
+
+const tutorGate = (env) => ({
+  isEnrolled: (user) => isEnrolledInNeetJee(user, env),
+  isCourseTutor: (user) => isNeetJeeTutor(user, env),
+});
+
+const tutorJson = async (c, res) => c.json(await res.json(), res.status);
+
+app.post("/api/functions/tutorAccess", async (c) =>
+  tutorJson(c, await tutorAccessHandler(await loadTutorUser(c), c.env, tutorGate(c.env)))
+);
+
+app.post("/api/functions/tutorToken", async (c) =>
+  tutorJson(c, await tutorTokenHandler(await loadTutorUser(c), c.env, tutorGate(c.env)))
 );
 
 
