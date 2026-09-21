@@ -35,15 +35,51 @@ import {
 import { invokeLLM } from "./llm.js";
 
 import {
+  tutorAccessHandler,
+  tutorTokenHandler,
+} from "./tutorToken.js";
+
+import {
+  isEnrolledInNeetJee,
+  isNeetJeeTutor,
+} from "./enrollment.js";
+
+import {
   generateGradeMeQuestions,
   fetchAvailableChapters,
   listApprovedTopics,
 } from "./grademe.js";
 
 import {
+  generateDraft,
+  submitFeedback,
+  listSkills,
+  listApprovedDrafts,
+  deleteDraft,
+  getBrandProfile,
+  updateBrandProfile,
+} from "./marketing.js";
+
+import {
   handleUpload,
   serveFile,
 } from "./upload.js";
+
+import {
+  createSession as createWhiteboardSession,
+  endSession as endWhiteboardSession,
+  appendDeltas as appendWhiteboardDeltas,
+  getDeltas as getWhiteboardDeltas,
+  saveSnapshot as saveWhiteboardSnapshot,
+  getSession as getWhiteboardSession,
+} from "./whiteboardRoutes.js";
+
+import {
+  logEngagementEvent,
+  getEngagementSummary,
+} from "./engagementRoutes.js";
+
+import { runWeeklyMockTestJob } from "./weeklyMockTest.js";
 
 
 const app = new Hono();
@@ -197,6 +233,36 @@ app.put(
      */
     delete body.id;
     delete body.email;
+
+    /*
+     * Fields a user must never set on their own account: otherwise anyone could
+     * promote themselves to admin, mark themselves a verified tutor, or reactivate
+     * a deactivated account. Admins change these through the admin pages.
+     */
+    for (const k of [
+      "role", "is_verified", "account_status", "rating", "total_students",
+      "created_by", "created_by_id", "created_date", "updated_date", "is_sample",
+    ]) {
+      delete body[k];
+    }
+
+    /*
+     * user_type may be chosen ONCE (while it is still empty), and never as "admin".
+     */
+    if ("user_type" in body) {
+      const current = await c.env.DB.prepare(
+        "SELECT user_type FROM users WHERE id = ?1"
+      ).bind(user.id).first();
+      const wanted = String(body.user_type || "").toLowerCase();
+      const canChoose =
+        !(current && current.user_type) &&
+        ["student", "parent", "tutor"].includes(wanted);
+      if (canChoose) {
+        body.user_type = wanted;
+      } else {
+        delete body.user_type;
+      }
+    }
 
     const updated =
       await updateEntity(
@@ -786,6 +852,446 @@ app.post(
   }
 );
 
+/*
+ * ---------- Marketing Skill Engine ----------
+ *
+ * Self-improving content assistant for ACAD's own marketing/
+ * communication messages (batch promos, fee reminders, admission
+ * drives, festival greetings, re-engagement, review requests).
+ * Admin-only: these drafts go out to parents/students under
+ * ACAD's name.
+ */
+
+
+
+
+
+
+
+
+/*
+ * Generate a content draft.
+ */
+app.post(
+  "/api/marketing/generate",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const result =
+        await generateDraft(
+          c.env,
+          await c.req.json()
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Submit feedback on a draft (accepted / edited / rejected) --
+ * this is the training signal that grows the skills table.
+ */
+app.post(
+  "/api/marketing/feedback",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const result =
+        await submitFeedback(
+          c.env,
+          await c.req.json()
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * List learned skills, optionally filtered by content type.
+ */
+app.get(
+  "/api/marketing/skills",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const contentType =
+        c.req.query("contentType");
+
+      return c.json(
+        await listSkills(
+          c.env,
+          { contentType }
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+/*
+ * List approved (accepted/edited) drafts — the persistent
+ * "Approved Content" panel. Stays until explicitly deleted.
+ */
+app.get(
+  "/api/marketing/drafts",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const contentType =
+        c.req.query("contentType");
+
+      return c.json(
+        await listApprovedDrafts(
+          c.env,
+          { contentType }
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Delete an approved draft -- manual cleanup, admin only.
+ */
+app.delete(
+  "/api/marketing/drafts/:id",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const result =
+        await deleteDraft(
+          c.env,
+          c.req.param("id")
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Get brand profile (tone, contact info, logo url for the
+ * graphic generator).
+ */
+app.get(
+  "/api/marketing/brand-profile",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      return c.json(
+        await getBrandProfile(
+          c.env
+        )
+      );
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
+
+/*
+ * Update brand profile (tone, contact info, logo url).
+ */
+app.put(
+  "/api/marketing/brand-profile",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+
+      const result =
+        await updateBrandProfile(
+          c.env,
+          await c.req.json()
+        );
+
+      return c.json(result);
+
+    } catch (e) {
+
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        502
+      );
+    }
+  }
+);
+
 
 /*
  * ---------- GradeMe ----------
@@ -1003,6 +1509,340 @@ app.get(
 
 
 /*
+ * ---------- Whiteboard ----------
+ *
+ * Session, delta, and snapshot endpoints backing the classroom's
+ * native Excalidraw-based whiteboard (Phase 1).
+ */
+
+
+/*
+ * Create a whiteboard session (tutor starts a class).
+ */
+app.post(
+  "/api/whiteboard/sessions",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return createWhiteboardSession(c);
+  }
+);
+
+
+/*
+ * End a whiteboard session.
+ */
+app.post(
+  "/api/whiteboard/:sessionId/end",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return endWhiteboardSession(c);
+  }
+);
+
+
+/*
+ * Append batched deltas to a whiteboard session.
+ */
+app.post(
+  "/api/whiteboard/:sessionId/deltas",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return appendWhiteboardDeltas(c);
+  }
+);
+
+
+/*
+ * Fetch deltas for replay/reload.
+ */
+app.get(
+  "/api/whiteboard/:sessionId/deltas",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return getWhiteboardDeltas(c);
+  }
+);
+
+
+/*
+ * Save a periodic snapshot/checkpoint.
+ */
+app.post(
+  "/api/whiteboard/:sessionId/snapshot",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return saveWhiteboardSnapshot(c);
+  }
+);
+
+
+/*
+ * Fetch session metadata + latest snapshot (reload/rejoin).
+ */
+app.get(
+  "/api/whiteboard/:sessionId",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return getWhiteboardSession(c);
+  }
+);
+
+
+/*
+ * ---------- Engagement (Phase 2) ----------
+ *
+ * Rule-based idle-event logging from student/viewer clients, plus a
+ * Groq-summarized flag feed for the tutor's sidebar.
+ */
+
+
+/*
+ * Log a single idle/rejoin event from a viewer's client.
+ */
+app.post(
+  "/api/whiteboard/:sessionId/engagement",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return logEngagementEvent(c);
+  }
+);
+
+
+/*
+ * Fetch recent engagement events + Groq-summarized flags for the tutor sidebar.
+ */
+app.get(
+  "/api/whiteboard/:sessionId/engagement/summary",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    return getEngagementSummary(c);
+  }
+);
+
+
+/*
+ * Manually trigger the weekly mock test generation job -- admin only.
+ * Exists purely for testing the Phase 3 automation without waiting for the
+ * Wednesday 10 AM IST cron to fire. Safe to leave in place long-term
+ * (e.g. to force an extra test before an exam week), since it's gated to
+ * admin accounts only.
+ */
+app.post(
+  "/api/admin/run-weekly-mocktest",
+  async (c) => {
+
+    const user =
+      await getSessionUser(
+        c.req.raw,
+        c.env
+      );
+
+    if (!user) {
+      return c.json(
+        {
+          error:
+            "Not authenticated",
+        },
+        401
+      );
+    }
+
+    if (
+      String(user.user_type)
+        .toLowerCase() !== "admin"
+    ) {
+      return c.json(
+        {
+          error:
+            "Admin access required",
+        },
+        403
+      );
+    }
+
+    try {
+      const result =
+        await runWeeklyMockTestJob(
+          c.env
+        );
+      return c.json(result);
+    } catch (e) {
+      return c.json(
+        {
+          error:
+            e.message,
+        },
+        500
+      );
+    }
+  }
+);
+
+
+/*
+ * ---------- NEET | JEE Smart-Tutor ----------
+ *
+ * tutorAccess : may this user see the "NEET | JEE Smart-Tutor" button?
+ * tutorToken  : short-lived signed token for the tutor Worker; refused unless the user
+ *               is an admin, a verified tutor of the NEET | JEE course, or an enrolled student.
+ *
+ * Registered BEFORE the generic /api/functions/:name route so these are matched first.
+ */
+async function loadTutorUser(c) {
+  const sessionUser = await getSessionUser(c.req.raw, c.env);
+  if (!sessionUser) return null;
+  // read the current row so a just-changed status or verification is honoured
+  const row = await c.env.DB.prepare(
+    "SELECT id, email, full_name, user_type, is_verified, account_status FROM users WHERE id = ?1"
+  ).bind(sessionUser.id).first();
+  return row || null;
+}
+
+const tutorGate = (env) => ({
+  isEnrolled: (user) => isEnrolledInNeetJee(user, env),
+  isCourseTutor: (user) => isNeetJeeTutor(user, env),
+});
+
+const tutorJson = async (c, res) => c.json(await res.json(), res.status);
+
+app.post("/api/functions/tutorAccess", async (c) =>
+  tutorJson(c, await tutorAccessHandler(await loadTutorUser(c), c.env, tutorGate(c.env)))
+);
+
+app.post("/api/functions/tutorToken", async (c) =>
+  tutorJson(c, await tutorTokenHandler(await loadTutorUser(c), c.env, tutorGate(c.env)))
+);
+
+
+/*
  * ---------- Other named notification functions ----------
  *
  * These continue to use the existing
@@ -1101,4 +1941,17 @@ app.onError((err, c) => {
 });
 
 
-export default app;
+export default {
+  fetch: app.fetch,
+
+  /*
+   * Cloudflare Cron Trigger entry point (see wrangler.toml [triggers]).
+   * Runs the weekly NEET/JEE mock test generation + notification job.
+   * ctx.waitUntil keeps the Worker alive until the async job finishes,
+   * since cron invocations don't wait on a returned Response the way a
+   * normal fetch request does.
+   */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runWeeklyMockTestJob(env));
+  },
+};

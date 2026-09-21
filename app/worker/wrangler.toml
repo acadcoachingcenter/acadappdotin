@@ -1,6 +1,11 @@
 name = "acad-api"
 main = "src/index.js"
 compatibility_date = "2026-07-01"
+workers_dev = true
+preview_urls = true
+routes = [
+  { pattern = "api.acadapp.in", custom_domain = true }
+]
 
 # ---- D1 database (free tier: 5GB storage, 5M rows read/day) ----
 # Create with: wrangler d1 create acad-db
@@ -24,6 +29,14 @@ SCHOOLBOOK_API_URL = "https://schoolbooks.acadapp.in"
 COOKIE_DOMAIN = ".acadapp.in"
 GROQ_MODEL = "openai/gpt-oss-120b"
 EMAIL_FROM = "ACAD Team <notifications@acadapp.in>"
+TUTOR_ACTIVE_STATUSES = "active"
+TUTOR_COURSE_IDS = "68c394ffb5426ee10668b13c"
+
+# ---- Cron Trigger: weekly NEET/JEE mock test generation ----
+# Runs every Wednesday 10:00 AM IST. Cron times are UTC; IST is UTC+5:30,
+# so 10:00 IST = 04:30 UTC. Day-of-week 3 = Wednesday (0 = Sunday).
+[triggers]
+crons = ["30 4 * * 3"]
 
 # ---- Secrets (do NOT put these here -- set via `wrangler secret put <NAME>`) ----
 # SESSION_SECRET       - long random string, e.g. `openssl rand -hex 32`

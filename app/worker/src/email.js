@@ -1,7 +1,7 @@
 // Sends email via Resend (https://resend.com). Free tier: 3,000 emails/mo, 100/day.
 // Requires env.RESEND_API_KEY and env.EMAIL_FROM (must be on a domain verified in Resend,
 // e.g. "ACAD Team <notifications@acadapp.in>"). See MIGRATION_GUIDE.md.
-export async function sendEmailViaResend(env, { to, subject, html, replyTo }) {
+export async function sendEmailViaResend(env, { to, subject, html, replyTo, bcc }) {
   if (!env.RESEND_API_KEY) {
     throw new Error("RESEND_API_KEY not configured");
   }
@@ -17,6 +17,7 @@ export async function sendEmailViaResend(env, { to, subject, html, replyTo }) {
       subject,
       html,
       ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(bcc && bcc.length ? { bcc } : {}),
     }),
   });
   if (!res.ok) {
