@@ -48,6 +48,8 @@ import {
   ChevronRight,
   Video,
   MonitorPlay,
+  Sparkles,
+  FileQuestion,
 } from "lucide-react";
 
 
@@ -78,6 +80,32 @@ export default function Layout({ children, currentPageName }) {
     "EXAM PREP": false,
     "LEARNING WEBSITES": false,
   });
+
+  const [learningResources, setLearningResources] = useState([]);
+
+  useEffect(() => {
+    // Optional chaining + try/catch here isn't just defensive style - a
+    // missing entity registration (like the LearningResource one that just
+    // shipped without being added to apiClient.js's ENTITY_NAMES) makes
+    // apiClient.entities.X undefined, and calling .list() on it throws
+    // synchronously, outside any promise - a plain .catch() doesn't catch
+    // that, and since Layout wraps every single page, it took down the
+    // entire site with a white screen instead of just this one section.
+    try {
+      apiClient.entities.LearningResource?.list("display_order")
+        .then((data) => {
+          const active = (Array.isArray(data) ? data : []).filter((r) => r.is_active !== false);
+          setLearningResources(active);
+        })
+        .catch((error) => {
+          console.error("Error loading learning resources:", error);
+          setLearningResources([]);
+        });
+    } catch (error) {
+      console.error("Error loading learning resources:", error);
+      setLearningResources([]);
+    }
+  }, []);
 
 
   /* =========================================================
@@ -243,11 +271,19 @@ export default function Layout({ children, currentPageName }) {
       isHeader: true,
     },
 {
-  title: "ACAD Classroom",
-  url: "https://classroom.acadapp.in/",
-  icon: Video,
+  title: "ACAD Smart Classroom",
+  url: "https://smart-tutor.acadapp.in/",
+  icon: Sparkles,
   external: true,
 },
+
+{
+  title: "Revision",
+  url: "https://revision.acadapp.in",
+  icon: ClipboardList,
+  external: true,
+},
+    
     {
       title: "Academic Essentials",
       url:
@@ -371,29 +407,12 @@ export default function Layout({ children, currentPageName }) {
         isHeader: true,
       },
 
-      {
-        title: "PhET Simulations",
-        url:
-          "https://phet.colorado.edu/",
+      ...learningResources.map((resource) => ({
+        title: resource.title,
+        url: resource.url,
         icon: BookOpen,
         external: true,
-      },
-
-      {
-        title: "Learning Resource 1",
-        url:
-          "https://share.google/PuX3WnxzJoYGQQuRQ",
-        icon: BookOpen,
-        external: true,
-      },
-
-      {
-        title: "Learning Resource 2",
-        url:
-          "https://share.google/ZSKrUcW2GF8okeBwS",
-        icon: BookOpen,
-        external: true,
-      },
+      })),
 
     ];
 
@@ -588,6 +607,42 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
+          title: "Classroom Links",
+          url:
+            createPageUrl(
+              "AdminClassroomLinks"
+            ),
+          icon: Video,
+        },
+
+        {
+          title: "Learning Websites",
+          url:
+            createPageUrl(
+              "AdminLearningResources"
+            ),
+          icon: BookOpen,
+        },
+
+        {
+          title: "Online Classroom",
+          url:
+            createPageUrl(
+              "OnlineClassroom"
+            ),
+          icon: Video,
+        },
+
+        {
+          title: "Weekly Coverage Report",
+          url:
+            createPageUrl(
+              "AdminWeeklyCoverage"
+            ),
+          icon: BookOpen,
+        },
+
+        {
           title: "AI Paper Generator",
           url:
             createPageUrl(
@@ -705,6 +760,24 @@ export default function Layout({ children, currentPageName }) {
               "StudentDashboard"
             ),
           icon: Home,
+        },
+
+        {
+          title: "Online Classroom",
+          url:
+            createPageUrl(
+              "OnlineClassroom"
+            ),
+          icon: Video,
+        },
+
+        {
+          title: "Weekly Mock Test",
+          url:
+            createPageUrl(
+              "WeeklyMockTest"
+            ),
+          icon: FileQuestion,
         },
 
         {
@@ -967,6 +1040,24 @@ export default function Layout({ children, currentPageName }) {
               "TutorDashboard"
             ),
           icon: Home,
+        },
+
+        {
+          title: "Online Classroom",
+          url:
+            createPageUrl(
+              "OnlineClassroom"
+            ),
+          icon: Video,
+        },
+
+        {
+          title: "Weekly Mock Test",
+          url:
+            createPageUrl(
+              "WeeklyMockTest"
+            ),
+          icon: FileQuestion,
         },
 
         {
@@ -1514,10 +1605,12 @@ export default function Layout({ children, currentPageName }) {
             title="ACAD Home"
           >
 
-            <div className="w-11 h-11 bg-[#1565C0] rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 shadow-sm">
 
-              <GraduationCap
-                className="w-6 h-6 text-white"
+              <img
+                src="/images/acad-logo.jpeg"
+                alt="ACAD"
+                className="w-full h-full object-cover"
               />
 
             </div>
@@ -1675,13 +1768,15 @@ export default function Layout({ children, currentPageName }) {
 
                   <Link
                     to="/"
-                    className="lg:hidden w-9 h-9 bg-[#1565C0] rounded-lg flex items-center justify-center"
+                    className="lg:hidden w-9 h-9 rounded-full overflow-hidden"
                     aria-label="ACAD Home"
                     title="ACAD Home"
                   >
 
-                    <GraduationCap
-                      className="w-5 h-5 text-white"
+                    <img
+                      src="/images/acad-logo.jpeg"
+                      alt="ACAD"
+                      className="w-full h-full object-cover"
                     />
 
                   </Link>

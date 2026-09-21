@@ -1,29 +1,29 @@
 /**
  * pages.config.js - Page routing configuration
- * 
+ *
  * This file is AUTO-GENERATED. Do not add imports or modify PAGES manually.
  * Pages are auto-registered when you create files in the ./pages/ folder.
- * 
+ *
  * THE ONLY EDITABLE VALUE: mainPage
  * This controls which page is the landing page (shown when users visit the app).
- * 
+ *
  * Example file structure:
- * 
+ *
  *   import HomePage from './pages/HomePage';
  *   import Dashboard from './pages/Dashboard';
  *   import Settings from './pages/Settings';
- *   
+ *
  *   export const PAGES = {
  *       "HomePage": HomePage,
  *       "Dashboard": Dashboard,
  *       "Settings": Settings,
  *   }
- *   
+ *
  *   export const pagesConfig = {
  *       mainPage: "HomePage",
  *       Pages: PAGES,
  *   };
- * 
+ *
  * Example with Layout (wraps all pages):
  *
  *   import Home from './pages/Home';
@@ -49,6 +49,9 @@
  */
 import AcademicEssentials from './pages/AcademicEssentials';
 import AdminCourseManagement from './pages/AdminCourseManagement';
+import AdminClassroomLinks from './pages/AdminClassroomLinks';
+import AdminLearningResources from './pages/AdminLearningResources';
+import AdminWeeklyCoverage from './pages/AdminWeeklyCoverage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminEnrollmentManagement from './pages/AdminEnrollmentManagement';
 import AdminEventManagement from './pages/AdminEventManagement';
@@ -72,6 +75,8 @@ import MyStudyMaterials from './pages/MyStudyMaterials';
 import MyTuitionRequests from './pages/MyTuitionRequests';
 import NeetJeeSupport from './pages/NeetJeeSupport';
 import Onboarding from './pages/Onboarding';
+import OnlineClassroom from './pages/OnlineClassroom';
+import WeeklyMockTest from './pages/WeeklyMockTest';
 import ParentDashboard from './pages/ParentDashboard';
 import PostTuitionRequest from './pages/PostTuitionRequest';
 import Profile from './pages/Profile';
@@ -87,6 +92,9 @@ import __Layout from './Layout.jsx';
 export const PAGES = {
     "AcademicEssentials": AcademicEssentials,
     "AdminCourseManagement": AdminCourseManagement,
+    "AdminClassroomLinks": AdminClassroomLinks,
+    "AdminLearningResources": AdminLearningResources,
+    "AdminWeeklyCoverage": AdminWeeklyCoverage,
     "AdminDashboard": AdminDashboard,
     "AdminEnrollmentManagement": AdminEnrollmentManagement,
     "AdminEventManagement": AdminEventManagement,
@@ -110,6 +118,8 @@ export const PAGES = {
     "MyTuitionRequests": MyTuitionRequests,
     "NeetJeeSupport": NeetJeeSupport,
     "Onboarding": Onboarding,
+    "OnlineClassroom": OnlineClassroom,
+    "WeeklyMockTest": WeeklyMockTest,
     "ParentDashboard": ParentDashboard,
     "PostTuitionRequest": PostTuitionRequest,
     "Profile": Profile,
