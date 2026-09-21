@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List, MessageCircle, Copy } from "lucide-react";
+import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List } from "lucide-react";
 import {
   createClass,
   decodeClassMeta,
@@ -12,7 +12,6 @@ import {
 } from "@/lib/classroomApi";
 import { DAYS, TIME_SLOTS } from "../constants";
 import WeeklyTimetable from "../components/WeeklyTimetable";
-import WhiteboardButton from "../components/WhiteboardButton";
 
 const INDIA_TIMEZONE = "Asia/Kolkata";
 const INDIA_OFFSET = "+05:30";
@@ -27,7 +26,13 @@ const SUBJECTS = [
   "Tamil",
   "Hindi",
   "Computer Science",
-  "Accountancy"
+  "Accountancy",
+  "JEE Physics",
+  "JEE Chemistry",
+  "JEE Mathematics",
+  "NEET Physics",
+  "NEET Chemistry",
+  "NEET Biology",
 ];
 
 function todayIST() {
@@ -56,75 +61,14 @@ function formatTime(time) {
   return `${h}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
-// Manual fallback while our WhatsApp templates are pending Meta's approval
-// (business-initiated automated sends require an approved template - this
-// doesn't, since a human taps Send themselves in WhatsApp). Same message
-// content as the automated template, just pre-filled instead of sent via
-// the API. Safe to keep around permanently too, as a backup for anyone
-// whose number didn't get an automated message for any reason.
-function buildWhatsAppLink(c, attendee) {
-  if (!attendee.phone) return null;
-  const text = buildCopyText(c, attendee.name);
-  return `https://wa.me/${attendee.phone}?text=${encodeURIComponent(text)}`;
-}
-
-// Same content as buildWhatsAppLink, but as plain text for a "Copy" button
-// instead of a wa.me link - wa.me only works smoothly with WhatsApp Web
-// (needs that browser tab already logged in via QR code) and opens a new
-// tab per recipient. Copying instead lets the admin paste into whichever
-// WhatsApp they already have open (phone app, desktop app, anything) and
-// pick the contact themselves - one copy, paste anywhere, no tab-switching.
-function formatCalendarStyleTime(startTime, endTime) {
-  const fmt = (t) => {
-    const [h, m] = t.split(":").map(Number);
-    const hour12 = h % 12 || 12;
-    const period = h >= 12 ? "pm" : "am";
-    return { text: `${hour12}:${String(m).padStart(2, "0")}`, period };
-  };
-  const start = fmt(startTime);
-  const end = fmt(endTime);
-  // Google Calendar shows the am/pm suffix once if both times share it,
-  // e.g. "12:30 – 1:30pm" rather than "12:30pm – 1:30pm".
-  return start.period === end.period
-    ? `${start.text} – ${end.text}${end.period}`
-    : `${start.text}${start.period} – ${end.text}${end.period}`;
-}
-
-function buildCopyText(c, attendeeName) {
-  const dateObj = c.schedule?.date ? new Date(`${c.schedule.date}T00:00:00+05:30`) : null;
-  const dateLine = dateObj
-    ? dateObj.toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric" })
-    : c.schedule?.date || "";
-  const timeLine = formatCalendarStyleTime(c.schedule?.startTime, c.schedule?.endTime);
-
-  return (
-    `Hello ${attendeeName}, your ACAD online class for the subject ${c.subject} - batch ${c.batchName} ` +
-    `will be conducted as per the following schedule,\n` +
-    `${dateLine} · ${timeLine}\n` +
-    `Time zone: Asia/Kolkata\n` +
-    `Google Meet joining info\n` +
-    `Video call link: ${c.meetUrl || "(not generated yet)"}\n\n` +
-    `please join now by clicking the link`
-  );
-}
-
 function iso(date, time) {
   return `${date}T${time}:00${INDIA_OFFSET}`;
 }
 
 function addDays(dateStr, days) {
-  // Pure calendar-date math in UTC on both ends -- no timezone offset is
-  // ever introduced, so there's nothing that can shift the date by a day.
-  // (Previously this parsed "T00:00:00+05:30" then called .toISOString(),
-  // which converts back to UTC and silently lands on the PREVIOUS calendar
-  // day -- e.g. a Friday class would be stored and grouped as Thursday.)
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const utcDate = new Date(Date.UTC(y, m - 1, d));
-  utcDate.setUTCDate(utcDate.getUTCDate() + days);
-  const yyyy = utcDate.getUTCFullYear();
-  const mm = String(utcDate.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(utcDate.getUTCDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  const d = new Date(`${dateStr}T00:00:00${INDIA_OFFSET}`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 function emptyForm() {
@@ -135,8 +79,7 @@ function emptyForm() {
     batchName: "Morning",
     date,
     day: dayFromDate(date),
-    startTime: "06:00",
-    endTime: "07:00",
+    timeSlot: "morning",
     tutorId: "",
     studentIds: [],
     repeatWeeks: 1,
@@ -145,15 +88,17 @@ function emptyForm() {
 
 function classToForm(c) {
   const meta = decodeClassMeta(c);
+  const slot =
+    TIME_SLOTS.find((s) => s.startTime === c.schedule?.startTime && s.endTime === c.schedule?.endTime) ||
+    TIME_SLOTS[0];
 
   return {
     grade: String(meta.grade || 9),
     subject: c.subject || "Mathematics",
-    batchName: meta.batchName || "",
+    batchName: meta.batchName || slot.name,
     date: c.schedule?.date || todayIST(),
     day: c.schedule?.day || dayFromDate(c.schedule?.date),
-    startTime: c.schedule?.startTime || "18:00",
-    endTime: c.schedule?.endTime || "19:00",
+    timeSlot: slot.id,
     tutorId: c.tutorId || "",
     studentIds: c.studentIds || [],
   };
@@ -172,20 +117,6 @@ export default function AdminClassroomPage({ user }) {
   const [syncingAll, setSyncingAll] = useState(false);
   const [message, setMessage] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
-  const [copiedFor, setCopiedFor] = useState(null);
-
-  const handleCopyText = async (c, attendee) => {
-    const key = `${c.id}-${attendee.id || attendee.email}`;
-    try {
-      await navigator.clipboard.writeText(buildCopyText(c, attendee.name));
-      setCopiedFor(key);
-      setTimeout(() => setCopiedFor((cur) => (cur === key ? null : cur)), 1500);
-    } catch (error) {
-      console.error("Clipboard copy failed:", error);
-      alert("Couldn't copy automatically - your browser may be blocking clipboard access.");
-    }
-  };
-
   const [view, setView] = useState("list");
 
   async function refresh() {
@@ -261,6 +192,11 @@ export default function AdminClassroomPage({ user }) {
       return;
     }
 
+    if (day === "Saturday" || day === "Sunday") {
+      setMessage("ACAD live classes are scheduled Monday to Friday only.");
+      return;
+    }
+
     if (!form.studentIds.length) {
       setMessage("Please select at least one ACAD student.");
       return;
@@ -268,22 +204,14 @@ export default function AdminClassroomPage({ user }) {
 
     const tutor = tutors.find((t) => t.id === form.tutorId);
     const selectedStudents = students.filter((s) => form.studentIds.includes(s.id));
+    const slot = TIME_SLOTS.find((s) => s.id === form.timeSlot) || TIME_SLOTS[0];
     const weeks = editingId ? 1 : Math.max(1, Number(form.repeatWeeks) || 1);
-
-    if (form.endTime <= form.startTime) {
-      setMessage("End time must be after start time.");
-      return;
-    }
-
-    const [startH, startM] = form.startTime.split(":").map(Number);
-    const [endH, endM] = form.endTime.split(":").map(Number);
-    const durationMinutes = endH * 60 + endM - (startH * 60 + startM);
 
     function buildClassData(dateStr, dayStr) {
       return {
         grade: Number(form.grade),
         subject: dayStr === "Friday" ? "Revision / Weekly Test" : form.subject,
-        batchName: form.batchName || "Class",
+        batchName: form.batchName || slot.name,
         tutor: {
           id: tutor.id,
           name: tutor.full_name || tutor.email,
@@ -299,13 +227,13 @@ export default function AdminClassroomPage({ user }) {
           email: s.email,
           phone: s.phone || "",
         })),
-        durationMinutes,
+        durationMinutes: 60,
         schedule: {
           day: dayStr,
           date: dateStr,
-          startTime: form.startTime,
-          endTime: form.endTime,
-          startTimeISO: iso(dateStr, form.startTime),
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          startTimeISO: iso(dateStr, slot.startTime),
         },
         status: "scheduled",
       };
@@ -329,6 +257,10 @@ export default function AdminClassroomPage({ user }) {
         for (let i = 0; i < weeks; i++) {
           const occurrenceDate = addDays(form.date, i * 7);
           const occurrenceDay = dayFromDate(occurrenceDate);
+          // Skip if a repeat lands on a weekend (shouldn't normally happen
+          // since the base date is validated as a weekday, but guards
+          // against odd date-math edge cases).
+          if (occurrenceDay === "Saturday" || occurrenceDay === "Sunday") continue;
           await createClass(buildClassData(occurrenceDate, occurrenceDay));
           created++;
         }
@@ -541,52 +473,22 @@ export default function AdminClassroomPage({ user }) {
             </label>
 
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-900">Start Time</span>
-              <input
-                type="time"
-                value={form.startTime}
-                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+              <span className="mb-1 block font-medium text-slate-900">Time</span>
+              <select
+                value={form.timeSlot}
+                onChange={(e) => {
+                  const slot = TIME_SLOTS.find((s) => s.id === e.target.value);
+                  setForm({ ...form, timeSlot: e.target.value, batchName: slot?.name || form.batchName });
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                required
-              />
-            </label>
-
-            <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-900">End Time</span>
-              <input
-                type="time"
-                value={form.endTime}
-                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                required
-              />
-            </label>
-
-            <div className="text-sm md:col-span-2 lg:col-span-1">
-              <span className="mb-1 block font-medium text-slate-900">Quick Fill</span>
-              <div className="flex flex-wrap gap-1.5">
-                {TIME_SLOTS.map((slot) => (
-                  <button
-                    key={slot.id}
-                    type="button"
-                    onClick={() =>
-                      setForm({
-                        ...form,
-                        startTime: slot.startTime,
-                        endTime: slot.endTime,
-                        batchName: form.batchName || slot.name,
-                      })
-                    }
-                    className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    {slot.name}
-                  </button>
+              >
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} - {formatTime(s.startTime)} to {formatTime(s.endTime)}
+                  </option>
                 ))}
-              </div>
-              <span className="mt-1 block text-xs text-slate-600">
-                Or set any custom time above - not limited to these three.
-              </span>
-            </div>
+              </select>
+            </label>
 
             <label className="text-sm">
               <span className="mb-1 block font-medium text-slate-900">Subject</span>
@@ -794,7 +696,6 @@ export default function AdminClassroomPage({ user }) {
                             <Trash2 size={14} />
                             Delete
                           </button>
-                          <WhiteboardButton classItem={c} role="admin" user={user} size="sm" />
                         </div>
                       </div>
 
@@ -804,44 +705,6 @@ export default function AdminClassroomPage({ user }) {
                           {c.meetUrl || "Not generated yet — click Google Calendar"}
                         </span>
                       </div>
-
-                      {c.attendees?.some((a) => a.phone) && (
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="text-xs text-slate-500">
-                            Send manually (while templates are pending):
-                          </span>
-                          {c.attendees
-                            .filter((a) => a.phone)
-                            .map((a) => {
-                              const link = buildWhatsAppLink(c, a);
-                              const copyKey = `${c.id}-${a.id || a.email}`;
-                              return (
-                                <div
-                                  key={a.id || a.email}
-                                  className="inline-flex items-center overflow-hidden rounded-full border border-green-300 bg-green-50 text-xs font-medium text-green-700"
-                                >
-                                  <button
-                                    onClick={() => handleCopyText(c, a)}
-                                    className="flex items-center gap-1 px-2.5 py-1 hover:bg-green-100"
-                                    title="Copy message text - paste into WhatsApp yourself"
-                                  >
-                                    <Copy size={12} />
-                                    {copiedFor === copyKey ? "Copied!" : a.name || a.role}
-                                  </button>
-                                  <a
-                                    href={link}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="border-l border-green-300 px-2 py-1 hover:bg-green-100"
-                                    title="Open in WhatsApp Web with text pre-filled"
-                                  >
-                                    <MessageCircle size={12} />
-                                  </a>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
