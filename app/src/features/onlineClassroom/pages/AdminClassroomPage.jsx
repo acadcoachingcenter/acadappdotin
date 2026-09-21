@@ -66,8 +66,18 @@ function iso(date, time) {
 }
 
 function addDays(dateStr, days) {
-  const d = new Date(`${dateStr}T00:00:00${INDIA_OFFSET}`);
-  d.setDate(d.getDate() + days);
+  // Pure calendar-date arithmetic - no timezone offset attached at any
+  // point. The previous version parsed the date at midnight IST, which
+  // toISOString() (always UTC) then reported as the PREVIOUS calendar
+  // day, every time, regardless of the browser's local timezone. Since
+  // adding multiples of 7 never changes the day of week, that silent
+  // one-day shift pushed every weekly-repeat occurrence from its real
+  // weekday onto the day before it (e.g. Monday -> Sunday) - which the
+  // Saturday/Sunday guard below then correctly, but confusingly, skipped,
+  // producing "Created 0 classes" for a perfectly valid weekday start date.
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
