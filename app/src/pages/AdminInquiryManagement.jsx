@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardList, Phone, Mail, UserPlus, Search, CheckCircle, Clock, XCircle, Filter, GraduationCap, Trash2, Sparkles, Copy } from "lucide-react";
+import { ClipboardList, Phone, Mail, UserPlus, Search, CheckCircle, Clock, XCircle, Filter, GraduationCap, Trash2, Sparkles, Copy, X, Save } from "lucide-react";
 import { format } from 'date-fns';
 import EnrollStudentModal from "@/components/admin/EnrollStudentModal";
 
@@ -61,6 +61,22 @@ export default function AdminInquiryManagement() {
   const [neetJeeSearchTerm, setNeetJeeSearchTerm] = useState("");
   const [neetJeeFilterStatus, setNeetJeeFilterStatus] = useState("all");
   const [copiedId, setCopiedId] = useState(null);
+
+  // Inline "Convert to Enrollment" mini-form - anchored to the registration
+  // card it was opened from, same pattern as the "Add Course" mini-form on
+  // AdminEnrollmentManagement. This is what actually creates the Enrollment
+  // record: the NeetJeeIntenseRegistration row is just a lead/signup and
+  // was never itself an Enrollment, so nothing (including NEET/JEE
+  // Smart-Tutor eligibility, which reads the enrollments table) ever
+  // activated for a registration on its own - "Mark as Enrolled" previously
+  // only changed this status label, not anything real.
+  const [convertRegId, setConvertRegId] = useState(null);
+  const [convertForm, setConvertForm] = useState({
+    course_name: 'NEET | JEE Intense',
+    tutor_name: '',
+    amount_paid: '',
+  });
+  const [isConverting, setIsConverting] = useState(false);
 
   const fetchInquiries = async () => {
     setIsLoading(true);
@@ -186,6 +202,63 @@ export default function AdminInquiryManagement() {
       remarks: inquiry.message ? `From inquiry: ${inquiry.message}` : "Enrolled by admin"
     });
     setEnrollModalOpen(true);
+  };
+
+  const startConvert = (reg) => {
+    setConvertRegId(reg.id);
+    setConvertForm({
+      course_name: 'NEET | JEE Intense',
+      tutor_name: '',
+      amount_paid: '',
+    });
+  };
+
+  const cancelConvert = () => {
+    setConvertRegId(null);
+    setConvertForm({ course_name: 'NEET | JEE Intense', tutor_name: '', amount_paid: '' });
+  };
+
+  const handleConvertToEnrollment = async (reg) => {
+    if (!convertForm.course_name.trim()) {
+      alert('Please enter a course name.');
+      return;
+    }
+
+    setIsConverting(true);
+
+    try {
+      // Registrations only ever carry a WhatsApp number (mobile), never an
+      // email - Enrollment records need a non-empty student_email, so a
+      // WhatsApp-only contact gets the same synthetic @whatsapp.temp
+      // address convention used everywhere else in enrollment creation.
+      const phone = (reg.mobile || '').replace(/\D/g, '');
+      const email = phone ? `${phone}@whatsapp.temp` : '';
+
+      await apiClient.entities.Enrollment.create({
+        student_name: reg.student_name || '',
+        student_email: email,
+        student_whatsapp: reg.mobile || '',
+        course_name: convertForm.course_name.trim(),
+        tutor_name: convertForm.tutor_name.trim(),
+        amount_paid: parseFloat(convertForm.amount_paid) || 0,
+        status: 'active',
+        enrollment_date: new Date().toISOString(),
+        remarks: `Converted from NEET | JEE Intense registration (${reg.preferred_path || 'Explore Both'}, Grade ${reg.grade || '9'}).`,
+      });
+
+      // Only reflect the conversion on the registration itself once the
+      // real Enrollment record above has actually been created.
+      await apiClient.entities.NeetJeeIntenseRegistration.update(reg.id, { status: 'enrolled' });
+
+      cancelConvert();
+      await fetchNeetJeeRegs();
+      alert('Enrollment created and registration marked as enrolled.');
+    } catch (error) {
+      console.error('Error converting registration to enrollment:', error);
+      alert('Failed to convert to enrollment: ' + error.message);
+    } finally {
+      setIsConverting(false);
+    }
   };
 
   const filteredInquiries = useMemo(() => {
@@ -756,6 +829,61 @@ export default function AdminInquiryManagement() {
                             <p className="text-sm text-slate-700">{reg.message}</p>
                           </div>
                         )}
+
+                        {convertRegId === reg.id && (
+                          <div className="grid md:grid-cols-3 gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-700">
+                                Course Name
+                              </label>
+                              <Input
+                                value={convertForm.course_name}
+                                onChange={(e) =>
+                                  setConvertForm({ ...convertForm, course_name: e.target.value })
+                                }
+                                placeholder="NEET | JEE Intense"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-700">
+                                Tutor Name
+                              </label>
+                              <Input
+                                value={convertForm.tutor_name}
+                                onChange={(e) =>
+                                  setConvertForm({ ...convertForm, tutor_name: e.target.value })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-700">
+                                Fee (₹/month)
+                              </label>
+                              <Input
+                                type="number"
+                                value={convertForm.amount_paid}
+                                onChange={(e) =>
+                                  setConvertForm({ ...convertForm, amount_paid: e.target.value })
+                                }
+                              />
+                            </div>
+                            <div className="md:col-span-3 flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleConvertToEnrollment(reg)}
+                                disabled={isConverting}
+                                className="bg-emerald-600 hover:bg-emerald-700"
+                              >
+                                <Save className="w-4 h-4 mr-1" />
+                                {isConverting ? "Converting..." : "Create Enrollment"}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={cancelConvert}>
+                                <X className="w-4 h-4 mr-1" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="lg:w-64 space-y-3">
@@ -809,12 +937,12 @@ export default function AdminInquiryManagement() {
                           {reg.status === 'contacted' && (
                             <>
                               <Button
-                                onClick={() => handleUpdateNeetJeeStatus(reg.id, 'enrolled')}
+                                onClick={() => startConvert(reg)}
                                 size="sm"
                                 className="w-full bg-green-600 hover:bg-green-700"
                               >
-                                <CheckCircle className="w-4 h-4 mr-2" />
-                                Mark as Enrolled
+                                <GraduationCap className="w-4 h-4 mr-2" />
+                                Convert to Enrollment
                               </Button>
                               <Button
                                 onClick={() => handleUpdateNeetJeeStatus(reg.id, 'closed')}
