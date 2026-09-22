@@ -224,6 +224,22 @@ const functionsApi = {
     }),
 };
 
+// Dedicated GradeMe endpoints - not generic entity CRUD, so they get their
+// own wrapper here rather than going through ENTITY_NAMES/entities.
+const grademe = {
+  availableChapters: () =>
+    apiFetch("/api/grademe/available-chapters"),
+
+  topics: () =>
+    apiFetch("/api/grademe/topics"),
+
+  generate: (payload) =>
+    apiFetch("/api/grademe/generate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};
+
 // Optional application analytics logger.
 const appLogs = {
   logUserInApp: () => Promise.resolve(),
@@ -236,5 +252,6 @@ export const apiClient = {
     Core,
   },
   functions: functionsApi,
+  grademe,
   appLogs,
 };
