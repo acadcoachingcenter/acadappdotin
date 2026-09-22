@@ -30,7 +30,12 @@ COOKIE_DOMAIN = ".acadapp.in"
 GROQ_MODEL = "openai/gpt-oss-120b"
 EMAIL_FROM = "ACAD Team <notifications@acadapp.in>"
 TUTOR_ACTIVE_STATUSES = "active"
-TUTOR_COURSE_IDS = "68c394ffb5426ee10668b13c"
+# TUTOR_COURSE_IDS intentionally left unset: with it empty, enrollment.js's
+# isNeetJeeCourse() falls back to matching any course whose title/name
+# contains the whole word "NEET" or "JEE" (see enrollment.js), so every
+# current and future NEET/JEE course variant (e.g. "NEET|JEE Intense")
+# grants Smart-Tutor access automatically, without needing this list
+# maintained by hand as new course offerings are added.
 
 # ---- Cron Trigger: weekly NEET/JEE mock test generation ----
 # Runs every Wednesday 10:00 AM IST. Cron times are UTC; IST is UTC+5:30,
