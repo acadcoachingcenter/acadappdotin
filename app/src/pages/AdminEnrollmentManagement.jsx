@@ -27,6 +27,33 @@ import AdmissionCardModal from '../components/admin/AdmissionCardModal';
 
 const COURSE_DURATION_MONTHS = 6;
 
+// Quick-select subjects for NEET/JEE-track masterclasses. Course name here
+// is free text (unlike EnrollStudentModal, which picks from the real Course
+// catalog) - these buttons exist so admin doesn't have to retype the exact
+// phrasing by hand each time. Consistent naming matters beyond tidiness:
+// the NEET/JEE Smart-Tutor's eligibility check matches on the whole words
+// "NEET" or "JEE" appearing in the course/enrollment title, so a typo'd or
+// reworded name can silently leave a student without Smart-Tutor access.
+const NEET_JEE_SUBJECTS = ['Physics', 'Chemistry', 'Biology', 'Math'];
+const neetJeeCourseName = (subject) => `${subject} Masterclass for NEET & JEE`;
+
+function NeetJeeQuickSelect({ onPick }) {
+  return (
+    <div className="mb-1.5 flex flex-wrap gap-1.5">
+      {NEET_JEE_SUBJECTS.map((subject) => (
+        <button
+          key={subject}
+          type="button"
+          onClick={() => onPick(neetJeeCourseName(subject))}
+          className="rounded-full border border-violet-300 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100"
+        >
+          {subject} (NEET/JEE)
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const StatusBadge = ({ status }) => {
   const styles = {
     pending_approval: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -1031,6 +1058,11 @@ export default function AdminEnrollmentManagement() {
                               <label className="mb-1 block text-xs font-medium text-slate-700">
                                 Course Name
                               </label>
+                              <NeetJeeQuickSelect
+                                onPick={(name) =>
+                                  setEditForm({ ...editForm, course_name: name })
+                                }
+                              />
                               <Input
                                 value={editForm.course_name}
                                 onChange={(e) =>
@@ -1150,6 +1182,11 @@ export default function AdminEnrollmentManagement() {
                               <label className="mb-1 block text-xs font-medium text-slate-700">
                                 New Course Name
                               </label>
+                              <NeetJeeQuickSelect
+                                onPick={(name) =>
+                                  setAddCourseForm({ ...addCourseForm, course_name: name })
+                                }
+                              />
                               <Input
                                 value={addCourseForm.course_name}
                                 onChange={(e) =>
