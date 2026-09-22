@@ -55,6 +55,9 @@ import AdminWeeklyCoverage from './pages/AdminWeeklyCoverage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminEnrollmentManagement from './pages/AdminEnrollmentManagement';
 import AdminEventManagement from './pages/AdminEventManagement';
+import AdminGradeMe from './pages/AdminGradeMe';
+import GradeMe from './pages/GradeMe';
+import TopicLog from './pages/TopicLog';
 import AdminFeesDue from './pages/AdminFeesDue';
 import AdminInquiryManagement from './pages/AdminInquiryManagement';
 import AdminTutorManagement from './pages/AdminTutorManagement';
@@ -98,6 +101,9 @@ export const PAGES = {
     "AdminDashboard": AdminDashboard,
     "AdminEnrollmentManagement": AdminEnrollmentManagement,
     "AdminEventManagement": AdminEventManagement,
+    "AdminGradeMe": AdminGradeMe,
+    "GradeMe": GradeMe,
+    "TopicLog": TopicLog,
     "AdminFeesDue": AdminFeesDue,
     "AdminInquiryManagement": AdminInquiryManagement,
     "AdminTutorManagement": AdminTutorManagement,

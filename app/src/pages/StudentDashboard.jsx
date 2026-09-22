@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import EnrollmentRequestModal from "../components/student/EnrollmentRequestModal";
 import PermanentClassrooms from "@/components/classroom/PermanentClassrooms";
+import NeetJeeTutorButton from "@/components/NeetJeeTutorButton";
 
 export default function StudentDashboard() {
   const { user, isLoadingAuth } = useAuth();
@@ -293,6 +294,26 @@ export default function StudentDashboard() {
               Start GradeMe
             </Link>
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* NEET | JEE SMART-TUTOR -- always shown so every student knows it exists; the button
+          itself is active only for students with a current NEET/JEE enrollment (checked
+          server-side), and greyed out/disabled otherwise. */}
+      <Card className="border-2 border-violet-200 bg-gradient-to-r from-violet-50 to-teal-50">
+        <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl mt-0.5 flex-shrink-0" aria-hidden="true">🎓</span>
+            <div>
+              <p className="font-semibold text-slate-900">
+                NEET | JEE Smart-Tutor
+              </p>
+              <p className="text-sm text-slate-600 mt-0.5">
+                AI tutor with citations from your ACAD notes — for students enrolled in a NEET or JEE course.
+              </p>
+            </div>
+          </div>
+          <NeetJeeTutorButton className="whitespace-nowrap" />
         </CardContent>
       </Card>
 
