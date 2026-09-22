@@ -37,6 +37,14 @@ const COURSE_DURATION_MONTHS = 6;
 const NEET_JEE_SUBJECTS = ['Physics', 'Chemistry', 'Biology', 'Math'];
 const neetJeeCourseName = (subject) => `${subject} Masterclass for NEET & JEE`;
 
+// NEET | JEE Intense is a whole-program track (not one subject), so it gets its
+// own button rather than fitting the per-subject "<Subject> Masterclass" pattern.
+// Signups for it currently only create an Inquiry record (see Inquiry Management's
+// NEET|JEE Intense tab) - nothing creates an Enrollment automatically, so this
+// button exists for the admin to use once they manually convert a signup into
+// an actual enrollment.
+const NEET_JEE_INTENSE_NAME = 'NEET | JEE Intense';
+
 function NeetJeeQuickSelect({ onPick }) {
   return (
     <div className="mb-1.5 flex flex-wrap gap-1.5">
@@ -50,6 +58,13 @@ function NeetJeeQuickSelect({ onPick }) {
           {subject} (NEET/JEE)
         </button>
       ))}
+      <button
+        type="button"
+        onClick={() => onPick(NEET_JEE_INTENSE_NAME)}
+        className="rounded-full border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100"
+      >
+        NEET | JEE Intense
+      </button>
     </div>
   );
 }
