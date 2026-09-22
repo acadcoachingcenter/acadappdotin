@@ -155,6 +155,14 @@ export default function StudentDashboard() {
     }))
     .filter((item) => item.course);
 
+  // Gates the Smart Classroom / GradeMe cards below - true once the student
+  // has at least one confirmed (active/approved) enrollment, same status
+  // values getEnrollmentStatus() treats as "Enrolled" elsewhere on this page.
+  const hasConfirmedEnrollment = enrollments.some((e) => {
+    const status = String(e?.status || "").toLowerCase();
+    return status === "active" || status === "approved";
+  });
+
   const renderPrice = (course) => {
     const now = new Date();
 
@@ -253,21 +261,37 @@ export default function StudentDashboard() {
               <p className="text-sm text-slate-600 mt-0.5">
                 Don't wait — jump into ACAD's Smart Classroom and keep learning right away.
               </p>
+              {!hasConfirmedEnrollment && (
+                <p className="text-xs text-amber-700 mt-1">
+                  Available once your enrollment is confirmed.
+                </p>
+              )}
             </div>
           </div>
-          <Button
-            asChild
-            className="bg-amber-600 hover:bg-amber-700 whitespace-nowrap"
-          >
-            <a
-              href="https://smart-tutor.acadapp.in/"
-              target="_blank"
-              rel="noopener noreferrer"
+          {hasConfirmedEnrollment ? (
+            <Button
+              asChild
+              className="bg-amber-600 hover:bg-amber-700 whitespace-nowrap"
+            >
+              <a
+                href="https://smart-tutor.acadapp.in/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open Smart Classroom
+                <ExternalLink className="w-4 h-4 ml-2" />
+              </a>
+            </Button>
+          ) : (
+            <Button
+              disabled
+              className="bg-slate-200 text-slate-500 whitespace-nowrap cursor-not-allowed hover:bg-slate-200"
+              title="Available once your enrollment is confirmed"
             >
               Open Smart Classroom
               <ExternalLink className="w-4 h-4 ml-2" />
-            </a>
-          </Button>
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -284,16 +308,31 @@ export default function StudentDashboard() {
               <p className="text-sm text-slate-600 mt-0.5">
                 Try GradeMe — quick self-graded practice questions with instant scoring and explanations.
               </p>
+              {!hasConfirmedEnrollment && (
+                <p className="text-xs text-blue-700 mt-1">
+                  Available once your enrollment is confirmed.
+                </p>
+              )}
             </div>
           </div>
-          <Button
-            asChild
-            className="bg-[#1565C0] hover:bg-[#1e88e5] whitespace-nowrap"
-          >
-            <Link to={createPageUrl("GradeMe")}>
+          {hasConfirmedEnrollment ? (
+            <Button
+              asChild
+              className="bg-[#1565C0] hover:bg-[#1e88e5] whitespace-nowrap"
+            >
+              <Link to={createPageUrl("GradeMe")}>
+                Start GradeMe
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              disabled
+              className="bg-slate-200 text-slate-500 whitespace-nowrap cursor-not-allowed hover:bg-slate-200"
+              title="Available once your enrollment is confirmed"
+            >
               Start GradeMe
-            </Link>
-          </Button>
+            </Button>
+          )}
         </CardContent>
       </Card>
 
