@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List } from "lucide-react";
+import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List, MessageCircle, Copy } from "lucide-react";
 import {
   createClass,
   decodeClassMeta,
@@ -61,6 +61,58 @@ function formatTime(time) {
   return `${h}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
+// Manual fallback while our WhatsApp templates are pending Meta's approval
+// (business-initiated automated sends require an approved template - this
+// doesn't, since a human taps Send themselves in WhatsApp). Same message
+// content as the automated template, just pre-filled instead of sent via
+// the API. Safe to keep around permanently too, as a backup for anyone
+// whose number didn't get an automated message for any reason.
+function buildWhatsAppLink(c, attendee) {
+  if (!attendee.phone) return null;
+  const text = buildCopyText(c, attendee.name);
+  return `https://wa.me/${attendee.phone}?text=${encodeURIComponent(text)}`;
+}
+
+// Same content as buildWhatsAppLink, but as plain text for a "Copy" button
+// instead of a wa.me link - wa.me only works smoothly with WhatsApp Web
+// (needs that browser tab already logged in via QR code) and opens a new
+// tab per recipient. Copying instead lets the admin paste into whichever
+// WhatsApp they already have open (phone app, desktop app, anything) and
+// pick the contact themselves - one copy, paste anywhere, no tab-switching.
+function formatCalendarStyleTime(startTime, endTime) {
+  const fmt = (t) => {
+    const [h, m] = t.split(":").map(Number);
+    const hour12 = h % 12 || 12;
+    const period = h >= 12 ? "pm" : "am";
+    return { text: `${hour12}:${String(m).padStart(2, "0")}`, period };
+  };
+  const start = fmt(startTime);
+  const end = fmt(endTime);
+  // Google Calendar shows the am/pm suffix once if both times share it,
+  // e.g. "12:30 – 1:30pm" rather than "12:30pm – 1:30pm".
+  return start.period === end.period
+    ? `${start.text} – ${end.text}${end.period}`
+    : `${start.text}${start.period} – ${end.text}${end.period}`;
+}
+
+function buildCopyText(c, attendeeName) {
+  const dateObj = c.schedule?.date ? new Date(`${c.schedule.date}T00:00:00+05:30`) : null;
+  const dateLine = dateObj
+    ? dateObj.toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric" })
+    : c.schedule?.date || "";
+  const timeLine = formatCalendarStyleTime(c.schedule?.startTime, c.schedule?.endTime);
+
+  return (
+    `Hello ${attendeeName}, your ACAD online class for the subject ${c.subject} - batch ${c.batchName} ` +
+    `will be conducted as per the following schedule,\n` +
+    `${dateLine} · ${timeLine}\n` +
+    `Time zone: Asia/Kolkata\n` +
+    `Google Meet joining info\n` +
+    `Video call link: ${c.meetUrl || "(not generated yet)"}\n\n` +
+    `please join now by clicking the link`
+  );
+}
+
 function iso(date, time) {
   return `${date}T${time}:00${INDIA_OFFSET}`;
 }
@@ -81,6 +133,12 @@ function addDays(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
+function minutesBetween(startTime, endTime) {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
+}
+
 function emptyForm() {
   const date = todayIST();
   return {
@@ -90,6 +148,8 @@ function emptyForm() {
     date,
     day: dayFromDate(date),
     timeSlot: "morning",
+    customStartTime: "",
+    customEndTime: "",
     tutorId: "",
     studentIds: [],
     repeatWeeks: 1,
@@ -98,9 +158,10 @@ function emptyForm() {
 
 function classToForm(c) {
   const meta = decodeClassMeta(c);
-  const slot =
-    TIME_SLOTS.find((s) => s.startTime === c.schedule?.startTime && s.endTime === c.schedule?.endTime) ||
-    TIME_SLOTS[0];
+  const matchedSlot = TIME_SLOTS.find(
+    (s) => s.startTime === c.schedule?.startTime && s.endTime === c.schedule?.endTime
+  );
+  const slot = matchedSlot || TIME_SLOTS[0];
 
   return {
     grade: String(meta.grade || 9),
@@ -108,7 +169,9 @@ function classToForm(c) {
     batchName: meta.batchName || slot.name,
     date: c.schedule?.date || todayIST(),
     day: c.schedule?.day || dayFromDate(c.schedule?.date),
-    timeSlot: slot.id,
+    timeSlot: matchedSlot ? matchedSlot.id : "custom",
+    customStartTime: matchedSlot ? "" : c.schedule?.startTime || "",
+    customEndTime: matchedSlot ? "" : c.schedule?.endTime || "",
     tutorId: c.tutorId || "",
     studentIds: c.studentIds || [],
   };
@@ -127,6 +190,20 @@ export default function AdminClassroomPage({ user }) {
   const [syncingAll, setSyncingAll] = useState(false);
   const [message, setMessage] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
+  const [copiedFor, setCopiedFor] = useState(null);
+
+  const handleCopyText = async (c, attendee) => {
+    const key = `${c.id}-${attendee.id || attendee.email}`;
+    try {
+      await navigator.clipboard.writeText(buildCopyText(c, attendee.name));
+      setCopiedFor(key);
+      setTimeout(() => setCopiedFor((cur) => (cur === key ? null : cur)), 1500);
+    } catch (error) {
+      console.error("Clipboard copy failed:", error);
+      alert("Couldn't copy automatically - your browser may be blocking clipboard access.");
+    }
+  };
+
   const [view, setView] = useState("list");
 
   async function refresh() {
@@ -196,6 +273,7 @@ export default function AdminClassroomPage({ user }) {
   async function handleSave(e) {
     e.preventDefault();
     const day = dayFromDate(form.date);
+    const isCustomTime = form.timeSlot === "custom";
 
     if (!form.date || !form.tutorId) {
       setMessage("Please select the class date and tutor.");
@@ -207,6 +285,16 @@ export default function AdminClassroomPage({ user }) {
       return;
     }
 
+    if (isCustomTime && (!form.customStartTime || !form.customEndTime)) {
+      setMessage("Please enter both a custom start time and end time.");
+      return;
+    }
+
+    if (isCustomTime && form.customEndTime <= form.customStartTime) {
+      setMessage("Custom end time must be after the start time.");
+      return;
+    }
+
     if (!form.studentIds.length) {
       setMessage("Please select at least one ACAD student.");
       return;
@@ -214,14 +302,18 @@ export default function AdminClassroomPage({ user }) {
 
     const tutor = tutors.find((t) => t.id === form.tutorId);
     const selectedStudents = students.filter((s) => form.studentIds.includes(s.id));
-    const slot = TIME_SLOTS.find((s) => s.id === form.timeSlot) || TIME_SLOTS[0];
+    const presetSlot = TIME_SLOTS.find((s) => s.id === form.timeSlot) || TIME_SLOTS[0];
+    const effectiveStartTime = isCustomTime ? form.customStartTime : presetSlot.startTime;
+    const effectiveEndTime = isCustomTime ? form.customEndTime : presetSlot.endTime;
+    const effectiveSlotName = isCustomTime ? "Custom" : presetSlot.name;
+    const effectiveDurationMinutes = minutesBetween(effectiveStartTime, effectiveEndTime);
     const weeks = editingId ? 1 : Math.max(1, Number(form.repeatWeeks) || 1);
 
     function buildClassData(dateStr, dayStr) {
       return {
         grade: Number(form.grade),
         subject: dayStr === "Friday" ? "Revision / Weekly Test" : form.subject,
-        batchName: form.batchName || slot.name,
+        batchName: form.batchName || effectiveSlotName,
         tutor: {
           id: tutor.id,
           name: tutor.full_name || tutor.email,
@@ -237,13 +329,13 @@ export default function AdminClassroomPage({ user }) {
           email: s.email,
           phone: s.phone || "",
         })),
-        durationMinutes: 60,
+        durationMinutes: effectiveDurationMinutes,
         schedule: {
           day: dayStr,
           date: dateStr,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          startTimeISO: iso(dateStr, slot.startTime),
+          startTime: effectiveStartTime,
+          endTime: effectiveEndTime,
+          startTimeISO: iso(dateStr, effectiveStartTime),
         },
         status: "scheduled",
       };
@@ -289,6 +381,14 @@ export default function AdminClassroomPage({ user }) {
   }
 
   async function handleCalendar(c) {
+    if (c.meetUrl) {
+      const confirmed = window.confirm(
+        "This class already has a Google Meet link. Re-syncing will update the existing Calendar event " +
+          "(same Meet link) and resend the invitation email/WhatsApp to the tutor and every student on this " +
+          "class. Continue?"
+      );
+      if (!confirmed) return;
+    }
     setSyncingId(c.id);
     setMessage("");
     try {
@@ -451,7 +551,7 @@ export default function AdminClassroomPage({ user }) {
                 onChange={(e) => setForm({ ...form, grade: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2"
               >
-                {[9, 10, 11, 12].map((g) => (
+                {[6, 7, 8, 9, 10, 11, 12].map((g) => (
                   <option key={g} value={g}>
                     Grade {g}
                   </option>
@@ -497,8 +597,35 @@ export default function AdminClassroomPage({ user }) {
                     {s.name} - {formatTime(s.startTime)} to {formatTime(s.endTime)}
                   </option>
                 ))}
+                <option value="custom">Custom time…</option>
               </select>
             </label>
+
+            {form.timeSlot === "custom" && (
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-900">Custom Start Time</span>
+                <input
+                  type="time"
+                  value={form.customStartTime}
+                  onChange={(e) => setForm({ ...form, customStartTime: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  required
+                />
+              </label>
+            )}
+
+            {form.timeSlot === "custom" && (
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-900">Custom End Time</span>
+                <input
+                  type="time"
+                  value={form.customEndTime}
+                  onChange={(e) => setForm({ ...form, customEndTime: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  required
+                />
+              </label>
+            )}
 
             <label className="text-sm">
               <span className="mb-1 block font-medium text-slate-900">Subject</span>
@@ -691,14 +818,31 @@ export default function AdminClassroomPage({ user }) {
                           >
                             Edit
                           </button>
-                          <button
-                            onClick={() => handleCalendar(c)}
-                            disabled={syncingId === c.id}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                          >
-                            <CalendarDays size={14} />
-                            {syncingId === c.id ? "Sending…" : "Google Calendar"}
-                          </button>
+                          {c.meetUrl ? (
+                            <div className="inline-flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
+                                <CalendarDays size={14} />
+                                Synced
+                              </span>
+                              <button
+                                onClick={() => handleCalendar(c)}
+                                disabled={syncingId === c.id}
+                                className="text-xs font-medium text-slate-500 underline decoration-dotted hover:text-slate-700 disabled:opacity-50"
+                                title="Force a re-sync - updates the same Calendar event and resends notifications"
+                              >
+                                {syncingId === c.id ? "Re-syncing…" : "Re-sync"}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleCalendar(c)}
+                              disabled={syncingId === c.id}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                            >
+                              <CalendarDays size={14} />
+                              {syncingId === c.id ? "Sending…" : "Google Calendar"}
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDelete(c)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600"
@@ -715,6 +859,44 @@ export default function AdminClassroomPage({ user }) {
                           {c.meetUrl || "Not generated yet — click Google Calendar"}
                         </span>
                       </div>
+
+                      {c.attendees?.some((a) => a.phone) && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-slate-500">
+                            Send manually (while templates are pending):
+                          </span>
+                          {c.attendees
+                            .filter((a) => a.phone)
+                            .map((a) => {
+                              const link = buildWhatsAppLink(c, a);
+                              const copyKey = `${c.id}-${a.id || a.email}`;
+                              return (
+                                <div
+                                  key={a.id || a.email}
+                                  className="inline-flex items-center overflow-hidden rounded-full border border-green-300 bg-green-50 text-xs font-medium text-green-700"
+                                >
+                                  <button
+                                    onClick={() => handleCopyText(c, a)}
+                                    className="flex items-center gap-1 px-2.5 py-1 hover:bg-green-100"
+                                    title="Copy message text - paste into WhatsApp yourself"
+                                  >
+                                    <Copy size={12} />
+                                    {copiedFor === copyKey ? "Copied!" : a.name || a.role}
+                                  </button>
+                                  <a
+                                    href={link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="border-l border-green-300 px-2 py-1 hover:bg-green-100"
+                                    title="Open in WhatsApp Web with text pre-filled"
+                                  >
+                                    <MessageCircle size={12} />
+                                  </a>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
