@@ -194,9 +194,16 @@ export default function ClassroomWhiteboard({ classItem, role, user, onClose, on
             setSessionId(existing.sessionId);
             setInitialData(data.latest_snapshot?.scene_json || null);
           } else {
-            // Start a new session for this class.
+            // Start a new session for this class. Both classroom_id and
+            // tutor_id are required by the backend - tutor_id was
+            // previously missing here, causing every session-start attempt
+            // to fail with "classroom_id and tutor_id are required" even
+            // though classItem always carries a valid tutorId (set by
+            // normalizeClass in classroomApi.js from the class's own
+            // tutor attendee record).
             const created = await createWhiteboardSession({
               classroom_id: classItem.id,
+              tutor_id: classItem.tutorId,
               title: classItem.subject,
               subject: classItem.subject,
             });
