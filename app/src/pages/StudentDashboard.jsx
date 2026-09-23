@@ -27,12 +27,14 @@ import {
 import EnrollmentRequestModal from "../components/student/EnrollmentRequestModal";
 import PermanentClassrooms from "@/components/classroom/PermanentClassrooms";
 import NeetJeeTutorButton from "@/components/NeetJeeTutorButton";
+import { apiClient } from "@/api/apiClient";
 
 export default function StudentDashboard() {
   const { user, isLoadingAuth } = useAuth();
 
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
+  const [featureAccess, setFeatureAccess] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAllCourses, setShowAllCourses] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -60,16 +62,42 @@ export default function StudentDashboard() {
 
       setCourses(publishedCourses);
 
-      // Load this student's enrollment records
-      const studentEnrollments = await Enrollment.filter({
-        student_id: user.id,
-      });
+      // Load this student's enrollment records. Matched by BOTH student_id
+      // and student_email, not just id - an enrollment admin created before
+      // this student ever signed in (a common order of events) can end up
+      // with a blank or mismatched student_id while student_email stays
+      // reliable, so id-only matching silently misses real active
+      // enrollments. Results are merged and deduped by row id.
+      const [enrollmentsById, enrollmentsByEmail] = await Promise.all([
+        user.id ? Enrollment.filter({ student_id: user.id }) : Promise.resolve([]),
+        user.email ? Enrollment.filter({ student_email: user.email }) : Promise.resolve([]),
+      ]);
 
-      setEnrollments(studentEnrollments || []);
+      const dedupedEnrollments = new Map();
+      [...(enrollmentsById || []), ...(enrollmentsByEmail || [])].forEach((e) => {
+        if (e && e.id) dedupedEnrollments.set(e.id, e);
+      });
+      const studentEnrollments = Array.from(dedupedEnrollments.values());
+
+      setEnrollments(studentEnrollments);
+
+      // Load any admin-set feature toggles for this student. Failing here
+      // shouldn't break the dashboard - an empty array just means every
+      // feature falls back to its enrollment-based default below.
+      try {
+        const access = await apiClient.entities.StudentFeatureAccess.filter({
+          student_email: user.email,
+        });
+        setFeatureAccess(access || []);
+      } catch (accessError) {
+        console.error("Error loading feature access:", accessError);
+        setFeatureAccess([]);
+      }
     } catch (error) {
       console.error("Error loading student dashboard data:", error);
       setCourses([]);
       setEnrollments([]);
+      setFeatureAccess([]);
     } finally {
       setIsLoading(false);
     }
@@ -163,6 +191,16 @@ export default function StudentDashboard() {
     return status === "active" || status === "approved";
   });
 
+  // If admin has explicitly toggled this feature for this student, that
+  // decision wins. Otherwise, fall back to the enrollment-based default -
+  // this is what keeps every currently-enrolled student's access unchanged
+  // on the day this ships, since no StudentFeatureAccess rows exist yet.
+  const getFeatureAccess = (featureKey) => {
+    const row = featureAccess.find((f) => f.feature_key === featureKey);
+    if (row) return !!row.enabled;
+    return hasConfirmedEnrollment;
+  };
+
   const renderPrice = (course) => {
     const now = new Date();
 
@@ -249,110 +287,62 @@ export default function StudentDashboard() {
         Welcome, {user.full_name || "Student"}!
       </h1>
 
-      {/* EMERGENCY / TUTOR-ABSENT FALLBACK */}
-      <Card className="border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50">
-        <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <Sparkles className="w-6 h-6 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-slate-900">
-                Tutor unavailable, or class link not working?
-              </p>
-              <p className="text-sm text-slate-600 mt-0.5">
-                Don't wait — jump into ACAD's Smart Classroom and keep learning right away.
-              </p>
-              {!hasConfirmedEnrollment && (
-                <p className="text-xs text-amber-700 mt-1">
-                  Available once your enrollment is confirmed.
-                </p>
-              )}
-            </div>
-          </div>
-          {hasConfirmedEnrollment ? (
-            <Button
-              asChild
-              className="bg-amber-600 hover:bg-amber-700 whitespace-nowrap"
-            >
-              <a
-                href="https://smart-tutor.acadapp.in/"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open Smart Classroom
-                <ExternalLink className="w-4 h-4 ml-2" />
-              </a>
-            </Button>
-          ) : (
-            <Button
-              disabled
-              className="bg-slate-200 text-slate-500 whitespace-nowrap cursor-not-allowed hover:bg-slate-200"
-              title="Available once your enrollment is confirmed"
+      {/* QUICK ACCESS -- Smart Classroom, GradeMe, and NEET/JEE Smart-Tutor as
+          one compact row of feature buttons instead of three separate cards.
+          Smart Classroom and GradeMe use getFeatureAccess() (an admin-set
+          StudentFeatureAccess row if one exists, falling back to
+          hasConfirmedEnrollment otherwise). NEET/JEE Smart-Tutor keeps its
+          own separate, already-secure, enrollment-based check inside
+          NeetJeeTutorButton - deliberately untouched by this system. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-500" />
+            Quick Access
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          {getFeatureAccess("smart_classroom") ? (
+            <a
+              href="https://smart-tutor.acadapp.in/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-3 font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-amber-700"
             >
               Open Smart Classroom
-              <ExternalLink className="w-4 h-4 ml-2" />
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* GRADEME -- self-graded practice for idle moments (waiting on a tutor,
-          between classes, or just extra practice) */}
-      <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-sky-50">
-        <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <Sparkles className="w-6 h-6 text-[#1565C0] mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-slate-900">
-                Got a few free minutes?
-              </p>
-              <p className="text-sm text-slate-600 mt-0.5">
-                Try GradeMe — quick self-graded practice questions with instant scoring and explanations.
-              </p>
-              {!hasConfirmedEnrollment && (
-                <p className="text-xs text-blue-700 mt-1">
-                  Available once your enrollment is confirmed.
-                </p>
-              )}
-            </div>
-          </div>
-          {hasConfirmedEnrollment ? (
-            <Button
-              asChild
-              className="bg-[#1565C0] hover:bg-[#1e88e5] whitespace-nowrap"
-            >
-              <Link to={createPageUrl("GradeMe")}>
-                Start GradeMe
-              </Link>
-            </Button>
+              <ExternalLink className="w-4 h-4" />
+            </a>
           ) : (
-            <Button
+            <button
+              type="button"
               disabled
-              className="bg-slate-200 text-slate-500 whitespace-nowrap cursor-not-allowed hover:bg-slate-200"
               title="Available once your enrollment is confirmed"
+              className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-500"
+            >
+              Open Smart Classroom
+              <ExternalLink className="w-4 h-4" />
+            </button>
+          )}
+
+          {getFeatureAccess("grademe") ? (
+            <Link
+              to={createPageUrl("GradeMe")}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#1565C0] px-5 py-3 font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-[#1e88e5]"
             >
               Start GradeMe
-            </Button>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title="Available once your enrollment is confirmed"
+              className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-500"
+            >
+              Start GradeMe
+            </button>
           )}
-        </CardContent>
-      </Card>
 
-      {/* NEET | JEE SMART-TUTOR -- always shown so every student knows it exists; the button
-          itself is active only for students with a current NEET/JEE enrollment (checked
-          server-side), and greyed out/disabled otherwise. */}
-      <Card className="border-2 border-violet-200 bg-gradient-to-r from-violet-50 to-teal-50">
-        <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl mt-0.5 flex-shrink-0" aria-hidden="true">🎓</span>
-            <div>
-              <p className="font-semibold text-slate-900">
-                NEET | JEE Smart-Tutor
-              </p>
-              <p className="text-sm text-slate-600 mt-0.5">
-                AI tutor with citations from your ACAD notes — for students enrolled in a NEET or JEE course.
-              </p>
-            </div>
-          </div>
-          <NeetJeeTutorButton className="whitespace-nowrap" />
+          <NeetJeeTutorButton />
         </CardContent>
       </Card>
 
