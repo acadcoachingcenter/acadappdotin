@@ -68,6 +68,9 @@ const ENTITY_NAMES = [
   // Monthly fee payment log for the admin "Fees Due" panel -- one row per
   // (enrollment, period_month) created when a month's fee is marked paid.
   "FeePayment",
+  // Admin-controlled per-student, per-feature toggle for student dashboard
+  // modules (Smart Classroom, GradeMe, ...) not tied to course enrollment.
+  "StudentFeatureAccess",
   // Public "NEET | JEE Intense" Grade 9+ programme interest submissions
   // from the Welcome page modal.
   "NeetJeeIntenseRegistration",

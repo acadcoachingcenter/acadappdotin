@@ -560,6 +560,39 @@ CREATE TABLE IF NOT EXISTS fee_payments (
 CREATE INDEX IF NOT EXISTS idx_fee_payments_enrollment_period
   ON fee_payments (enrollment_id, period_month);
 
+-- Entity: StudentFeatureAccess
+-- Admin-controlled per-student, per-feature toggle for student-dashboard
+-- modules (Smart Classroom, GradeMe, and any future one) that aren't tied
+-- to a specific course enrollment -- e.g. a paid add-on. One row per
+-- (student_email, feature_key); UNIQUE enforces that so the app always
+-- updates an existing row instead of accumulating duplicates. If no row
+-- exists yet for a given student+feature, the frontend falls back to its
+-- existing enrollment-based default rather than treating it as disabled --
+-- so this only changes behaviour once admin explicitly sets a row, and
+-- every already-enrolled student keeps working exactly as before on the
+-- day this ships. NEET/JEE Smart-Tutor deliberately does NOT use this
+-- table -- it keeps its own separate, already-secure, enrollment-based
+-- access check (see tutorAccess/enrollment.js).
+CREATE TABLE IF NOT EXISTS student_feature_access (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  student_email TEXT,
+  student_id TEXT,
+  student_name TEXT,
+  feature_key TEXT,
+  enabled INTEGER,
+  notes TEXT,
+  UNIQUE(student_email, feature_key)
+);
+
+-- Fast lookup for "what features has this student had explicitly toggled" --
+-- the exact query the student dashboard and the admin Feature Access modal
+-- both run.
+CREATE INDEX IF NOT EXISTS idx_student_feature_access_email
+  ON student_feature_access (student_email);
+
 -- Entity: NeetJeeIntenseRegistration
 -- Public submissions from the "NEET | JEE Intense" Grade 9+ foundation
 -- programme interest modal on the Welcome page. Kept separate from Inquiry

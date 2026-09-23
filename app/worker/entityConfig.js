@@ -185,6 +185,23 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: [],
   },
+  // One row per (student, feature) -- lets admin explicitly turn a student
+  // dashboard feature (Smart Classroom, GradeMe, ...) on or off, e.g. based
+  // on a paid add-on rather than general course enrollment. feature_key is
+  // a fixed string per feature ("smart_classroom", "grademe"). If NO row
+  // exists yet for a given (student, feature), the frontend falls back to
+  // its existing enrollment-based default rather than treating it as
+  // disabled -- so this only changes behaviour once admin explicitly sets
+  // a row, and every already-enrolled student keeps working exactly as
+  // before on the day this ships. NEET/JEE Smart-Tutor deliberately does
+  // NOT use this table -- it keeps its own separate, already-secure,
+  // enrollment-based access check (see tutorAccess/enrollment.js).
+  StudentFeatureAccess: {
+    table: "student_feature_access",
+    columns: ["student_email", "student_id", "student_name", "feature_key", "enabled", "notes"],
+    arrayFields: [],
+    boolFields: ["enabled"],
+  },
   // One row per submission of the "NEET | JEE Intense" Grade 9+ foundation
   // programme interest modal on the Welcome page. Deliberately a separate
   // entity from Inquiry -- this programme has its own preferred_path
@@ -213,7 +230,7 @@ export const PUBLIC_CREATE = new Set(["Inquiry", "TuitionRequest", "HomeTutor", 
 // Financial-record entities: only admins may create/update/delete these,
 // regardless of who's logged in. (List/read still just requires login,
 // same as every other non-public entity.)
-export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "FeePayment"]);
+export const ADMIN_ONLY_WRITE = new Set(["TutorPayment", "Expense", "FeePayment", "StudentFeatureAccess"]);
 
 // NOTE: base44's original per-entity read/write permission rules lived in the base44
 // dashboard and were NOT included in the code export, so these lists are a reasonable
