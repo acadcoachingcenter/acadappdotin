@@ -20,10 +20,12 @@ import {
   Pencil,
   Save,
   X,
-  PlusCircle
+  PlusCircle,
+  Sparkles
 } from 'lucide-react';
 import EnrollStudentModal from '../components/admin/EnrollStudentModal';
 import AdmissionCardModal from '../components/admin/AdmissionCardModal';
+import StudentFeatureAccessModal from '../components/admin/StudentFeatureAccessModal';
 
 const COURSE_DURATION_MONTHS = 6;
 
@@ -95,6 +97,10 @@ export default function AdminEnrollmentManagement() {
   // Admission card now takes the full group of a student's active courses,
   // not a single enrollment - see getStudentEnrollments below.
   const [admissionEnrollments, setAdmissionEnrollments] = useState(null);
+
+  // Same grouping as admissionEnrollments - feature access is per-student,
+  // not per-course, so this also takes the full group.
+  const [featureAccessEnrollments, setFeatureAccessEnrollments] = useState(null);
 
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -1327,6 +1333,20 @@ export default function AdminEnrollmentManagement() {
                             </Button>
 
                             <Button
+                              onClick={() =>
+                                setFeatureAccessEnrollments(
+                                  getStudentEnrollments(enrollment, enrollments)
+                                )
+                              }
+                              size="sm"
+                              variant="outline"
+                              className="text-amber-700 border-amber-300 hover:bg-amber-50"
+                            >
+                              <Sparkles className="w-4 h-4 mr-1" />
+                              Feature Access
+                            </Button>
+
+                            <Button
                               onClick={() => startAddCourse(enrollment)}
                               size="sm"
                               variant="outline"
@@ -1441,6 +1461,16 @@ export default function AdminEnrollmentManagement() {
         onOpenChange={(open) => {
           if (!open) {
             setAdmissionEnrollments(null);
+          }
+        }}
+      />
+
+      <StudentFeatureAccessModal
+        studentEnrollments={featureAccessEnrollments}
+        open={Boolean(featureAccessEnrollments && featureAccessEnrollments.length)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFeatureAccessEnrollments(null);
           }
         }}
       />
