@@ -131,7 +131,7 @@ export async function listAcadUsers(type) {
   const users = Array.isArray(rows) ? rows : [];
   return users
     .filter((u) => String(u.user_type || "").toLowerCase() === type)
-    .sort((a, b) => String(a.full_name || a.email).localeCompare(String(b.full_name || b.email)));
+    .sort((a, b) => String(a.full_name || a.email).localeCompare(b.full_name || b.email));
 }
 
 // Students for the class-scheduling picker come from active Enrollment
@@ -140,9 +140,30 @@ export async function listAcadUsers(type) {
 // separately create/complete a full ACAD account, so the `users` table
 // alone misses them. Enrollment records also already carry the WhatsApp
 // number collected at enrollment time, which is exactly what's needed here.
+//
+// The `id` returned here ends up baked directly into a LiveClass's
+// attendees list when admin schedules a class (see buildAttendees below),
+// and listClassesForUser matches a logged-in student against that stored
+// id - so it must be the student's REAL User.id whenever one exists, not
+// a stand-in. Falling back to the Enrollment row's own id (as this used
+// to do whenever student_id was blank) meant that student's classes could
+// never match their real account once they signed in, even though their
+// name and email were stored correctly - the class simply never appeared
+// on their dashboard. Cross-referencing by email against real User rows
+// fixes this for any student who has since signed in, regardless of
+// whether their Enrollment record's student_id was ever backfilled.
 export async function listActiveEnrolledStudents() {
-  const rows = await apiClient.entities.Enrollment.list("-created_date", 1000);
-  const enrollments = Array.isArray(rows) ? rows : [];
+  const [enrollmentRows, userRows] = await Promise.all([
+    apiClient.entities.Enrollment.list("-created_date", 1000),
+    apiClient.entities.User.list(null, 1000),
+  ]);
+
+  const enrollments = Array.isArray(enrollmentRows) ? enrollmentRows : [];
+  const users = Array.isArray(userRows) ? userRows : [];
+
+  const userByEmail = new Map(
+    users.filter((u) => u.email).map((u) => [u.email.trim().toLowerCase(), u])
+  );
 
   const byEmail = new Map();
 
@@ -165,8 +186,14 @@ export async function listActiveEnrolledStudents() {
       continue;
     }
 
+    const matchedUser = email ? userByEmail.get(email) : null;
+
     byEmail.set(key, {
-      id: e.student_id || e.id,
+      // Real User.id first (matched by email), then whatever the
+      // enrollment itself carries, then the enrollment row's own id as a
+      // last resort for a student who has genuinely never signed in yet -
+      // in that last case there is no real id to use regardless.
+      id: matchedUser?.id || e.student_id || e.id,
       full_name: e.student_name || e.student_email || e.student_whatsapp || "Student",
       email: e.student_email || "",
       phone,
@@ -191,7 +218,21 @@ export async function listClassesForUser(user) {
   }
 
   if (type === "student") {
-    return classes.filter((c) => c.attendees.some((a) => a.id === user.id && a.role === "student"));
+    // Matched by id OR email, not id alone - a class scheduled before this
+    // student's real User.id was correctly linked (see
+    // listActiveEnrolledStudents above) can still have the wrong id baked
+    // into its attendees list; email keeps those classes visible to the
+    // right student regardless of when/whether that gets backfilled.
+    const userEmail = String(user.email || "").trim().toLowerCase();
+
+    return classes.filter((c) =>
+      c.attendees.some((a) => {
+        if (a.role !== "student") return false;
+        if (a.id && user.id && a.id === user.id) return true;
+        if (userEmail && String(a.email || "").trim().toLowerCase() === userEmail) return true;
+        return false;
+      })
+    );
   }
 
   return [];
