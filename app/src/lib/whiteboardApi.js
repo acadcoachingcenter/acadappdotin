@@ -31,10 +31,14 @@ async function whiteboardFetch(path, options = {}) {
   return res.json();
 }
 
-export function createWhiteboardSession({ classroom_id, title, subject }) {
+// tutor_id is required by the backend alongside classroom_id - it was
+// previously missing from this function's own destructuring, so even once
+// the caller (ClassroomWhiteboard.jsx) started passing it, this wrapper
+// silently dropped it before the request body was ever built.
+export function createWhiteboardSession({ classroom_id, tutor_id, title, subject }) {
   return whiteboardFetch("/api/whiteboard/sessions", {
     method: "POST",
-    body: JSON.stringify({ classroom_id, title, subject }),
+    body: JSON.stringify({ classroom_id, tutor_id, title, subject }),
   });
 }
 
