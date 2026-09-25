@@ -297,7 +297,7 @@ export default function Welcome() {
           "logo": "https://acadapp.in/logo.png",
           "image": "https://acadapp.in/og-image.jpg",
           "telephone": "+91-9790818436",
-          "email": "acadcoachingcenter@gmail.com",
+          "email": "info@acadapp.in",
           "address": {
             "@type": "PostalAddress",
             "addressCountry": "IN"
@@ -316,7 +316,7 @@ export default function Welcome() {
             "@type": "ContactPoint",
             "telephone": "+91-9790818436",
             "contactType": "customer service",
-            "email": "acadcoachingcenter@gmail.com",
+            "email": "info@acadapp.in",
             "availableLanguage": ["English", "Hindi"]
           }
         })}
@@ -370,7 +370,7 @@ export default function Welcome() {
             </div>
             <div className="flex items-center gap-2">
               <Mail className="w-4 h-4 opacity-90" />
-              <span className="font-medium">acadcoachingcenter@gmail.com</span>
+              <span className="font-medium">info@acadapp.in</span>
             </div>
           </div>
           <div className="text-xs text-blue-100">
@@ -748,7 +748,7 @@ export default function Welcome() {
                   </div>
                   <div className="text-left">
                     <div className="font-semibold text-sm">Email Support</div>
-                    <div className="text-blue-100 text-xs">acadcoachingcenter@gmail.com</div>
+                    <div className="text-blue-100 text-xs">info@acadapp.in</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 bg-white/10 rounded-full pl-3 pr-6 py-2.5">
@@ -780,7 +780,7 @@ export default function Welcome() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-[#1565C0]" />
-                  <span>acadcoachingcenter@gmail.com</span>
+                  <span>info@acadapp.in</span>
                 </div>
               </div>
             </div>
@@ -822,7 +822,7 @@ export default function Welcome() {
           <div className="border-t border-slate-800 mt-12 pt-8 text-center">
             <p className="text-sm">&copy; {new Date().getFullYear()} ACAD Online Tuition Platform. All rights reserved.</p>
             <div className="flex items-center justify-center gap-4 mt-2 text-xs">
-              <span>Contact: acadcoachingcenter@gmail.com | WhatsApp: +91 9790818436</span>
+              <span>Contact: info@acadapp.in | WhatsApp: +91 9790818436</span>
             </div>
           </div>
         </div>
