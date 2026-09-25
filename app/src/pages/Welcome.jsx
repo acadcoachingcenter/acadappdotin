@@ -297,7 +297,7 @@ export default function Welcome() {
           "logo": "https://acadapp.in/logo.png",
           "image": "https://acadapp.in/og-image.jpg",
           "telephone": "+91-9790818436",
-          "email": "acadcoachingcenter@gmail.com",
+          "email": "info@acadapp.in",
           "address": {
             "@type": "PostalAddress",
             "addressCountry": "IN"
