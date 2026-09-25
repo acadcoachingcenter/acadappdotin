@@ -403,6 +403,20 @@ export default function AdminDashboard() {
             </Link>
           </Button>
 
+          <Button
+            asChild
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            <Link
+              to={createPageUrl(
+                "AdminStudyMaterials"
+              )}
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              Study Materials
+            </Link>
+          </Button>
+
         </CardContent>
       </Card>
 
