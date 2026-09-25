@@ -103,7 +103,7 @@ export default function ChristmasNewYearOffer() {
             </div>
             
             <h1 className="text-5xl md:text-7xl font-bold mb-6 animate-pulse">
-              🎄 Merry Christmas & Happy New Year 2027! 🎅
+              🎄 Merry Christmas! & Happy New Year 2027!! 🎅
             </h1>
             
             <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-8 mb-8 border-2 border-white">
