@@ -616,6 +616,15 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
+          title: "Study Materials",
+          url:
+            createPageUrl(
+              "AdminStudyMaterials"
+            ),
+          icon: BookOpen,
+        },
+
+        {
           title: "Learning Websites",
           url:
             createPageUrl(
@@ -823,6 +832,15 @@ export default function Layout({ children, currentPageName }) {
               "TopicLog"
             ),
           icon: ClipboardList,
+        },
+
+        {
+          title: "Study Materials",
+          url:
+            createPageUrl(
+              "StudentStudyMaterials"
+            ),
+          icon: BookOpen,
         },
 
         {
@@ -1112,6 +1130,15 @@ export default function Layout({ children, currentPageName }) {
               "GradeMe"
             ),
           icon: Sparkles,
+        },
+
+        {
+          title: "Study Materials",
+          url:
+            createPageUrl(
+              "TutorStudyMaterials"
+            ),
+          icon: BookOpen,
         },
 
         {
