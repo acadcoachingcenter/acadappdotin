@@ -862,15 +862,6 @@ export default function Layout({ children, currentPageName }) {
         },
 
         {
-          title: "My Study Materials",
-          url:
-            createPageUrl(
-              "MyStudyMaterials"
-            ),
-          icon: BookOpen,
-        },
-
-        {
           title: "My Attendance",
           url:
             createPageUrl(
