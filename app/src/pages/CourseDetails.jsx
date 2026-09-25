@@ -1,26 +1,20 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { Course } from '@/entities/Course';
-import { StudyMaterial } from '@/entities/StudyMaterial';
 import { Assignment } from '@/entities/Assignment';
 import { Enrollment } from '@/entities/Enrollment';
+import { createPageUrl } from '@/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookOpen, FileText, PlusCircle, Trash2, Users, UserPlus } from "lucide-react";
-import AddMaterialModal from '../components/tutor/AddMaterialModal';
+import { BookOpen, FileText, PlusCircle, Users, UserPlus, ArrowRight } from "lucide-react";
 import AddStudentModal from '../components/tutor/AddStudentModal';
-import { Link } from 'react-router-dom';
-
 
 export default function CourseDetails() {
   const location = useLocation();
   const [course, setCourse] = useState(null);
-  const [materials, setMaterials] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
 
   const courseId = new URLSearchParams(location.search).get('id');
@@ -30,45 +24,17 @@ export default function CourseDetails() {
       console.error("No courseId found in URL");
       return;
     }
-    
-    console.log("Loading data for courseId:", courseId);
+
     setIsLoading(true);
-    
+
     try {
       const courseData = await Course.get(courseId);
-      console.log("Course data loaded:", courseData);
       setCourse(courseData);
-      
-      // Try to get ALL materials first, then filter manually
-      const allMaterials = await StudyMaterial.list();
-      console.log("All materials in system:", allMaterials);
-      console.log("Number of materials found:", allMaterials.length);
-      
-      // Log each material's course_id for comparison
-      allMaterials.forEach((material, index) => {
-        console.log(`Material ${index + 1}:`, {
-          id: material.id,
-          title: material.title,
-          course_id: material.course_id,
-          course_id_type: typeof material.course_id,
-          matches_current_course: material.course_id === courseId,
-          courseId_type: typeof courseId
-        });
-      });
-      
-      const materialData = allMaterials.filter(material => {
-        console.log(`Comparing: "${material.course_id}" (type: ${typeof material.course_id}) === "${courseId}" (type: ${typeof courseId})`, material.course_id === courseId);
-        return material.course_id === courseId;
-      });
-      console.log("Filtered materials for this course:", materialData);
-      setMaterials(materialData);
 
       const assignmentData = await Assignment.filter({ course_id: courseId });
-      console.log("Assignment data:", assignmentData);
       setAssignments(assignmentData);
-      
+
       const enrollmentData = await Enrollment.filter({ course_id: courseId, status: 'active' });
-      console.log("Enrollment data:", enrollmentData);
       setEnrollments(enrollmentData);
 
     } catch (error) {
@@ -94,38 +60,29 @@ export default function CourseDetails() {
           <p className="text-xs text-slate-400">Course ID: {courseId}</p>
         </CardHeader>
       </Card>
-      
+
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Study Materials Card */}
+        {/* Study Materials -- moved to a chapter-scoped shared library
+            (grade/subject/chapter, not tied to one course) rather than
+            uploaded files here, to avoid R2/D1 storage costs and to keep
+            materials shared across every tutor teaching that chapter. */}
         <Card className="md:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText /> Study Materials ({materials.length})
+              <FileText /> Study Materials
             </CardTitle>
-            <Button size="sm" onClick={() => setIsMaterialModalOpen(true)}>
-              <PlusCircle className="w-4 h-4 mr-2" /> Add Material
-            </Button>
           </CardHeader>
           <CardContent>
-            {materials.length > 0 ? (
-              <ul className="space-y-2">
-                {materials.map(mat => (
-                  <li key={mat.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-md">
-                    <div>
-                      <a href={mat.file_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-medium">{mat.title}</a>
-                      {mat.description && <p className="text-sm text-slate-600 mt-1">{mat.description}</p>}
-                      <p className="text-xs text-slate-400">ID: {mat.id}</p>
-                    </div>
-                    <Button variant="ghost" size="icon" className="w-8 h-8"><Trash2 className="w-4 h-4" /></Button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-slate-500">No materials uploaded yet.</p>
-                <p className="text-xs text-slate-400 mt-2">Looking for materials with course_id: {courseId}</p>
-              </div>
-            )}
+            <p className="text-slate-600">
+              Study materials now live in one shared place, organized by chapter instead of by course --
+              any material you add there is visible to every student on that chapter, not just this course.
+            </p>
+            <Button asChild className="mt-4 bg-emerald-600 hover:bg-emerald-700">
+              <Link to={createPageUrl("TutorStudyMaterials")}>
+                Go to Study Materials
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
 
@@ -180,16 +137,6 @@ export default function CourseDetails() {
         </Card>
       </div>
 
-      {isMaterialModalOpen && (
-        <AddMaterialModal
-          courseId={course.id}
-          tutorId={course.tutor_id}
-          open={isMaterialModalOpen}
-          onOpenChange={setIsMaterialModalOpen}
-          onMaterialAdded={loadCourseData}
-        />
-      )}
-      
       {isStudentModalOpen && (
         <AddStudentModal
             course={course}
