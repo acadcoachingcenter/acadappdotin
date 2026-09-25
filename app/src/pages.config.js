@@ -89,6 +89,9 @@ import StudentDashboard from './pages/StudentDashboard';
 import SupportUs from './pages/SupportUs';
 import TutorDashboard from './pages/TutorDashboard';
 import Welcome from './pages/Welcome';
+import StudentStudyMaterials from './pages/StudentStudyMaterials';
+import TutorStudyMaterials from './pages/TutorStudyMaterials';
+import AdminStudyMaterials from './pages/AdminStudyMaterials';
 import __Layout from './Layout.jsx';
 
 
@@ -135,6 +138,9 @@ export const PAGES = {
     "SupportUs": SupportUs,
     "TutorDashboard": TutorDashboard,
     "Welcome": Welcome,
+    "StudentStudyMaterials": StudentStudyMaterials,
+    "TutorStudyMaterials": TutorStudyMaterials,
+    "AdminStudyMaterials": AdminStudyMaterials,
 }
 
 export const pagesConfig = {
