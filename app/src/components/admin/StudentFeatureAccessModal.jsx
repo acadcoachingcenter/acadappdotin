@@ -14,6 +14,8 @@ const NEET_JEE_PATTERN = /\bNEET\b|\bJEE\b/i;
 const FEATURES = [
   { key: 'smart_classroom', label: 'Open Smart Classroom' },
   { key: 'grademe', label: 'Start GradeMe' },
+  { key: 'chapter_buddy', label: 'Open Chapter Buddy' },
+  { key: 'study_materials', label: 'Browse Study Materials' },
 ];
 
 // studentEnrollments: the same array AdmissionCardModal receives - every
@@ -35,23 +37,37 @@ export default function StudentFeatureAccessModal({ studentEnrollments, open, on
     (e) => e.status === 'active' && NEET_JEE_PATTERN.test(e.course_name || '')
   );
 
+  const [loadError, setLoadError] = useState('');
+
   useEffect(() => {
     if (!open || !studentEmail) return;
 
     let alive = true;
     setIsLoading(true);
+    setLoadError('');
 
-    apiClient.entities.StudentFeatureAccess.filter({ student_email: studentEmail })
-      .then((data) => {
+    // Wrapped defensively: if the StudentFeatureAccess entity isn't
+    // actually registered on the backend yet (or any other error occurs),
+    // this must never crash the whole AdminEnrollmentManagement page -
+    // just show an in-modal error instead.
+    (async () => {
+      try {
+        const data = await apiClient.entities.StudentFeatureAccess.filter({
+          student_email: studentEmail,
+        });
         if (alive) setRows(Array.isArray(data) ? data : []);
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('Error loading feature access:', error);
-        if (alive) setRows([]);
-      })
-      .finally(() => {
+        if (alive) {
+          setRows([]);
+          setLoadError(
+            error?.message || 'Could not load feature access for this student.'
+          );
+        }
+      } finally {
         if (alive) setIsLoading(false);
-      });
+      }
+    })();
 
     return () => {
       alive = false;
@@ -136,6 +152,15 @@ export default function StudentFeatureAccessModal({ studentEnrollments, open, on
           <div className="flex items-center justify-center gap-2 py-8 text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading…
+          </div>
+        ) : loadError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <p className="font-medium">Couldn't load feature access.</p>
+            <p className="mt-1 text-xs">{loadError}</p>
+            <p className="mt-2 text-xs text-red-600">
+              This usually means the StudentFeatureAccess table/entity hasn't been deployed to the backend yet -
+              check that the D1 schema was applied and the Worker was redeployed with the updated entityConfig.js.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

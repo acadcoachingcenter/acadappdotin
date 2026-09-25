@@ -294,6 +294,8 @@ export default function StudentDashboard() {
       <QuickAccessRow
         smartClassroomEnabled={getFeatureAccess("smart_classroom")}
         grademeEnabled={getFeatureAccess("grademe")}
+        chapterBuddyEnabled={getFeatureAccess("chapter_buddy")}
+        studyMaterialsEnabled={getFeatureAccess("study_materials")}
       />
 
       <PermanentClassrooms />

@@ -22,7 +22,12 @@ import NeetJeeTutorButton from "@/components/NeetJeeTutorButton";
 //
 // NeetJeeTutorButton needs no props here - it already determines its own
 // eligibility per-role via a server-side check, unchanged by this component.
-export default function QuickAccessRow({ smartClassroomEnabled, grademeEnabled }) {
+export default function QuickAccessRow({
+  smartClassroomEnabled,
+  grademeEnabled,
+  chapterBuddyEnabled,
+  studyMaterialsEnabled,
+}) {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -69,6 +74,46 @@ export default function QuickAccessRow({ smartClassroomEnabled, grademeEnabled }
             className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-500"
           >
             Start GradeMe
+          </button>
+        )}
+
+        {chapterBuddyEnabled ? (
+          <a
+            href="https://chapter.skylinn.in/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-indigo-700"
+          >
+            Open Chapter Buddy
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        ) : (
+          <button
+            type="button"
+            disabled
+            title="Available once your enrollment is confirmed"
+            className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-500"
+          >
+            Open Chapter Buddy
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        )}
+
+        {studyMaterialsEnabled ? (
+          <Link
+            to={createPageUrl("StudentStudyMaterials")}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:bg-emerald-700"
+          >
+            Browse Study Materials
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            title="Available once your enrollment is confirmed"
+            className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-5 py-3 font-semibold text-slate-500"
+          >
+            Browse Study Materials
           </button>
         )}
 
