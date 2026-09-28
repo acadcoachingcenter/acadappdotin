@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/api/apiClient';
 
 // Must match the tutor page's exact origin (and ALLOWED_ORIGINS in the tutor Worker's wrangler.toml)
-const TUTOR_URL = 'https://acad-neet-tutor.pages.dev';
+const TUTOR_URL = 'https://neetjee.acadapp.in';
 const REFRESH_MS = 20 * 60 * 1000;   // tokens last 30 min; renew well before that
 
 export default function NeetJeeTutorPage() {

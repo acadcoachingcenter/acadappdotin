@@ -125,11 +125,18 @@ export const ENTITY_CONFIG = {
     arrayFields: [],
     boolFields: [],
   },
+  // Chapter-linked study materials (currently Google Drive links, to avoid
+  // R2/D1 storage costs - file_url just needs to point somewhere, doesn't
+  // have to be an uploaded file). grade/subject/chapter/chapter_title use
+  // the same chapter registry GradeMe's availableChapters() draws from, so
+  // "Grade 9 Physics Chapter 3" means the same thing in both features.
+  // is_active is the admin visibility toggle - a tutor's upload is visible
+  // to students immediately (default 1); admin can flip it off if needed.
   StudyMaterial: {
     table: "study_materials",
-    columns: ["course_id", "tutor_id", "title", "description", "file_url", "file_type"],
+    columns: ["course_id", "tutor_id", "tutor_name", "title", "description", "file_url", "file_type", "grade", "subject", "chapter", "chapter_title", "is_active"],
     arrayFields: [],
-    boolFields: [],
+    boolFields: ["is_active"],
   },
   Submission: {
     table: "submissions",
