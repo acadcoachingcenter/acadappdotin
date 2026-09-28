@@ -187,6 +187,33 @@ const getDialNumber = (phone) => {
 };
 
 
+/* Turns whatever the admin typed into the form that gets saved:
+   digits only, with the country code, ready for wa.me links and for
+   the WhatsApp class notifications (which need the country code and
+   no "+", spaces or dashes). A bare 10-digit number is treated as
+   Indian (+91); a leading 0 on an 11-digit number is dropped.
+   Returns "" when the input can't be a real phone number. */
+const normalizePhoneForSave = (input) => {
+
+  let digits = String(input || "").replace(/\D/g, "");
+
+  if (digits.length === 11 && digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
+
+  if (digits.length === 10) {
+    return "91" + digits;
+  }
+
+  if (digits.length > 10 && digits.length <= 15) {
+    return digits;
+  }
+
+  return "";
+
+};
+
+
 /* ============================================================
    MAIN COMPONENT
 ============================================================ */
@@ -227,6 +254,21 @@ export default function AdminTutorManagement() {
     useState([]);
 
   const [isSavingSubjects, setIsSavingSubjects] =
+    useState(false);
+
+
+  /* Phone / WhatsApp number editor */
+
+  const [editingPhoneUser, setEditingPhoneUser] =
+    useState(null);
+
+  const [phoneInput, setPhoneInput] =
+    useState("");
+
+  const [phoneError, setPhoneError] =
+    useState("");
+
+  const [isSavingPhone, setIsSavingPhone] =
     useState(false);
 
 
@@ -904,6 +946,129 @@ export default function AdminTutorManagement() {
     }
 
   };
+
+
+  /* ==========================================================
+     PHONE / WHATSAPP NUMBER EDITOR
+
+     Saved on the User record's existing `phone` column. Stored as
+     digits with the country code (e.g. 919876543210) - the class
+     scheduler reads this same field to send the tutor their WhatsApp
+     class notifications, and the WhatsApp API needs that exact form.
+  ========================================================== */
+
+  const openPhoneEditor = (user) => {
+
+    setEditingPhoneUser(user);
+
+    setPhoneInput(getUserPhone(user));
+
+    setPhoneError("");
+
+  };
+
+
+  const closePhoneEditor = () => {
+
+    if (isSavingPhone) {
+      return;
+    }
+
+    setEditingPhoneUser(null);
+
+    setPhoneInput("");
+
+    setPhoneError("");
+
+  };
+
+
+  const savePhone = async () => {
+
+    if (!editingPhoneUser) {
+      return;
+    }
+
+
+    const raw = phoneInput.trim();
+
+    /* An empty box clears the number. */
+    const normalized = raw
+      ? normalizePhoneForSave(raw)
+      : "";
+
+    if (raw && !normalized) {
+
+      setPhoneError(
+        "That doesn't look like a valid number - enter at least 10 digits."
+      );
+
+      return;
+
+    }
+
+
+    setIsSavingPhone(true);
+
+    setPhoneError("");
+
+
+    try {
+
+      await User.update(
+        editingPhoneUser.id,
+        {
+          phone: normalized,
+        }
+      );
+
+
+      /* Update the row in place so filters and scroll
+         position are not disturbed by a full reload. */
+
+      setUsers((current) =>
+        current.map((u) =>
+          u.id === editingPhoneUser.id
+            ? {
+                ...u,
+                phone: normalized,
+              }
+            : u
+        )
+      );
+
+
+      setEditingPhoneUser(null);
+
+      setPhoneInput("");
+
+
+    } catch (error) {
+
+      console.error(
+        "Error saving phone number:",
+        error
+      );
+
+      setPhoneError(
+        "Failed to save: " +
+          (error.message ||
+            "Unknown error")
+      );
+
+    } finally {
+
+      setIsSavingPhone(false);
+
+    }
+
+  };
+
+
+  /* What the number will be saved as, shown live under the box. */
+
+  const phonePreview =
+    normalizePhoneForSave(phoneInput);
 
 
   /* ==========================================================
@@ -1752,9 +1917,33 @@ export default function AdminTutorManagement() {
                               <p className="
                                 text-sm
                                 text-slate-600
+                                flex
+                                items-center
+                                gap-2
                               ">
 
                                 {phone}
+
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() =>
+                                    openPhoneEditor(
+                                      user
+                                    )
+                                  }
+                                >
+
+                                  <Pencil className="
+                                    w-3
+                                    h-3
+                                    mr-1
+                                  " />
+
+                                  Edit
+
+                                </Button>
 
                               </p>
 
@@ -2005,14 +2194,30 @@ export default function AdminTutorManagement() {
 
                             ) : (
 
-                              <span className="
-                                text-xs
-                                text-slate-400
-                              ">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  openPhoneEditor(
+                                    user
+                                  )
+                                }
+                                className="
+                                  text-green-700
+                                  border-green-200
+                                  hover:bg-green-50
+                                "
+                              >
 
-                                No phone number
+                                <MessageCircle className="
+                                  w-4
+                                  h-4
+                                  mr-1
+                                " />
 
-                              </span>
+                                Add WhatsApp number
+
+                              </Button>
 
                             )
 
@@ -2367,6 +2572,154 @@ export default function AdminTutorManagement() {
               {isSavingSubjects
                 ? "Saving..."
                 : "Save subjects"}
+
+            </Button>
+
+          </DialogFooter>
+
+        </DialogContent>
+
+      </Dialog>
+
+
+      {/* ======================================================
+          PHONE / WHATSAPP NUMBER DIALOG
+      ======================================================= */}
+
+      <Dialog
+        open={!!editingPhoneUser}
+        onOpenChange={(open) => {
+
+          if (!open) {
+            closePhoneEditor();
+          }
+
+        }}
+      >
+
+        <DialogContent>
+
+          <DialogHeader>
+
+            <DialogTitle>
+              WhatsApp / phone number
+            </DialogTitle>
+
+            <DialogDescription>
+
+              Number for{" "}
+
+              <strong>
+                {editingPhoneUser?.full_name ||
+                  editingPhoneUser?.email}
+              </strong>
+
+              . It powers the Call and WhatsApp
+              buttons on this page and the
+              WhatsApp class notifications sent
+              when a class is scheduled.
+
+            </DialogDescription>
+
+          </DialogHeader>
+
+
+          <div className="
+            space-y-2
+            py-2
+          ">
+
+            <Input
+              type="tel"
+              value={phoneInput}
+              onChange={(e) => {
+
+                setPhoneInput(e.target.value);
+
+                setPhoneError("");
+
+              }}
+              onKeyDown={(e) => {
+
+                if (e.key === "Enter") {
+                  savePhone();
+                }
+
+              }}
+              placeholder="e.g. 98765 43210"
+              autoFocus
+            />
+
+            <p className="
+              text-xs
+              text-slate-500
+            ">
+
+              Enter the 10-digit Indian number, or
+              include the country code for another
+              country. Spaces, dashes and + are fine.
+              Leave it blank and save to remove the
+              number.
+
+            </p>
+
+            {phoneInput.trim() && phonePreview && (
+
+              <p className="
+                text-xs
+                text-slate-600
+              ">
+
+                Will be saved as:{" "}
+
+                <strong>{phonePreview}</strong>
+
+              </p>
+
+            )}
+
+            {phoneError && (
+
+              <p className="
+                text-sm
+                text-red-600
+              ">
+
+                {phoneError}
+
+              </p>
+
+            )}
+
+          </div>
+
+
+          <DialogFooter>
+
+            <Button
+              variant="outline"
+              onClick={closePhoneEditor}
+              disabled={isSavingPhone}
+            >
+
+              Cancel
+
+            </Button>
+
+
+            <Button
+              onClick={savePhone}
+              disabled={isSavingPhone}
+              className="
+                bg-green-600
+                hover:bg-green-700
+                text-white
+              "
+            >
+
+              {isSavingPhone
+                ? "Saving..."
+                : "Save number"}
 
             </Button>
 
