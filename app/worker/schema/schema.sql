@@ -333,6 +333,14 @@ CREATE TABLE IF NOT EXISTS student_submissions (
 );
 
 -- Entity: StudyMaterial
+-- Chapter-linked study materials (currently Google Drive links, to avoid
+-- R2/D1 storage costs). grade/subject/chapter/chapter_title use the same
+-- chapter registry GradeMe's availableChapters() draws from. is_active is
+-- the admin visibility toggle - visible immediately on upload, admin can
+-- revoke. NOTE: this table already existed (unused) before these columns
+-- were added - see migrate_study_materials.sql for the one-time ALTER
+-- needed on the already-deployed table; this CREATE only takes effect for
+-- a brand new database.
 CREATE TABLE IF NOT EXISTS study_materials (
   id TEXT PRIMARY KEY,
   created_by TEXT,
@@ -340,11 +348,22 @@ CREATE TABLE IF NOT EXISTS study_materials (
   updated_date TEXT DEFAULT (datetime('now')),
   course_id TEXT,
   tutor_id TEXT,
+  tutor_name TEXT,
   title TEXT,
   description TEXT,
   file_url TEXT,
-  file_type TEXT
+  file_type TEXT,
+  grade TEXT,
+  subject TEXT,
+  chapter TEXT,
+  chapter_title TEXT,
+  is_active INTEGER DEFAULT 1
 );
+
+-- Fast lookup for "materials for this chapter" - the exact query both the
+-- tutor's own list and the student shared-library view will run.
+CREATE INDEX IF NOT EXISTS idx_study_materials_chapter
+  ON study_materials (grade, subject, chapter);
 
 -- Entity: Submission
 CREATE TABLE IF NOT EXISTS submissions (
@@ -526,6 +545,34 @@ CREATE TABLE IF NOT EXISTS topic_logs (
 -- the query the weekly generator will run.
 CREATE INDEX IF NOT EXISTS idx_topic_logs_course_date
   ON topic_logs (course_id, class_date);
+
+-- Entity: ClassLog
+-- Standalone log-book entries tutors add for what they covered in a class
+-- (Date | Class | Chapter | Topics Covered). Deliberately NOT tied to a
+-- specific LiveClass row, so a tutor can add or backfill an entry for any
+-- date. NOTE: this table was previously created outside schema.sql, without
+-- the standard created_by / created_date / updated_date columns every entity
+-- table needs - every save failed with "table class_logs has no column
+-- named created_by". See migrate_class_logs.sql for repairing the
+-- already-deployed table; this CREATE only takes effect for a brand new
+-- database (or after the broken table has been dropped).
+CREATE TABLE IF NOT EXISTS class_logs (
+  id TEXT PRIMARY KEY,
+  created_by TEXT,
+  created_date TEXT DEFAULT (datetime('now')),
+  updated_date TEXT DEFAULT (datetime('now')),
+  tutor_id TEXT,
+  tutor_name TEXT,
+  log_date TEXT,
+  class_name TEXT,
+  chapter TEXT,
+  topics_covered TEXT
+);
+
+-- Fast lookup for a tutor's own log entries, newest first - the query
+-- listClassLogs() runs.
+CREATE INDEX IF NOT EXISTS idx_class_logs_tutor_date
+  ON class_logs (tutor_id, log_date);
 
 -- Entity: FeePayment
 -- Monthly fee payment log for the admin "Fees Due" panel. One row per
