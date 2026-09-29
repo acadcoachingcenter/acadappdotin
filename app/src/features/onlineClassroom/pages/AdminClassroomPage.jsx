@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Clock, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List, MessageCircle, Copy } from "lucide-react";
+import { CalendarDays, Clock, Download, Plus, Save, Trash2, X, Users, Video, LayoutGrid, List, MessageCircle, Copy } from "lucide-react";
 import {
   createClass,
   decodeClassMeta,
@@ -13,6 +13,7 @@ import {
 import { DAYS, TIME_SLOTS } from "../constants";
 import WhiteboardButton from "../components/WhiteboardButton";
 import WeeklyTimetable from "../components/WeeklyTimetable";
+import { SESSION_FOCUS, focusById, renderTimetablePng, downloadBlob } from "@/lib/timetablePng";
 
 const INDIA_TIMEZONE = "Asia/Kolkata";
 const INDIA_OFFSET = "+05:30";
@@ -134,6 +135,27 @@ function addDays(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
+// Monday of the IST week containing `dateStr`.
+function mondayOf(dateStr) {
+  const idx = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].indexOf(
+    dayFromDate(dateStr)
+  );
+  return addDays(dateStr, -Math.max(0, idx));
+}
+
+function prettyDate(dateStr) {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: INDIA_TIMEZONE,
+  }).format(new Date(`${dateStr}T12:00:00${INDIA_OFFSET}`));
+}
+
+function classFocus(c) {
+  return c.sessionFocus || decodeClassMeta(c).sessionFocus || "core";
+}
+
 function minutesBetween(startTime, endTime) {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
@@ -151,6 +173,7 @@ function emptyForm() {
     timeSlot: "morning",
     customStartTime: "",
     customEndTime: "",
+    sessionFocus: "core",
     tutorId: "",
     studentIds: [],
     repeatWeeks: 1,
@@ -173,6 +196,7 @@ function classToForm(c) {
     timeSlot: matchedSlot ? matchedSlot.id : "custom",
     customStartTime: matchedSlot ? "" : c.schedule?.startTime || "",
     customEndTime: matchedSlot ? "" : c.schedule?.endTime || "",
+    sessionFocus: classFocus(c),
     tutorId: c.tutorId || "",
     studentIds: c.studentIds || [],
   };
@@ -192,6 +216,8 @@ export default function AdminClassroomPage({ user }) {
   const [message, setMessage] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
   const [copiedFor, setCopiedFor] = useState(null);
+  const [exportRange, setExportRange] = useState("pattern");
+  const [exporting, setExporting] = useState(false);
 
   const handleCopyText = async (c, attendee) => {
     const key = `${c.id}-${attendee.id || attendee.email}`;
@@ -271,6 +297,50 @@ export default function AdminClassroomPage({ user }) {
     }));
   }
 
+  async function handleDownloadPng() {
+    setExporting(true);
+    setMessage("");
+    try {
+      let rows = classes;
+      let subtitle = "Live Class Timetable · Weekly schedule";
+      let fileTag = "weekly";
+
+      if (exportRange !== "pattern") {
+        const start = addDays(mondayOf(todayIST()), exportRange === "next" ? 7 : 0);
+        const end = addDays(start, 6);
+        rows = classes.filter((c) => c.schedule?.date >= start && c.schedule?.date <= end);
+        subtitle = `Live Class Timetable · ${prettyDate(start)} – ${prettyDate(end)}`;
+        fileTag = start;
+      }
+
+      if (!rows.length) {
+        setMessage("No classes in the selected range. Schedule classes or pick another range.");
+        return;
+      }
+
+      // Tutor names are intentionally left out of the image; each class
+      // shows its session focus (Core Concepts / Numerical Problems /
+      // Doubt Session) instead.
+      const entries = rows.map((c) => ({
+        day: c.schedule?.day || dayFromDate(c.schedule?.date),
+        startTime: c.schedule?.startTime,
+        endTime: c.schedule?.endTime,
+        subject: c.subject,
+        grade: c.grade,
+        focus: classFocus(c),
+      }));
+
+      const blob = await renderTimetablePng(entries, { timeSlots: TIME_SLOTS, days: DAYS, subtitle });
+      downloadBlob(blob, `acad-timetable-${fileTag}.png`);
+      setMessage("Timetable PNG downloaded.");
+    } catch (err) {
+      console.error(err);
+      setMessage(err.message || "Could not create the timetable image.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function handleSave(e) {
     e.preventDefault();
     const day = dayFromDate(form.date);
@@ -315,6 +385,7 @@ export default function AdminClassroomPage({ user }) {
         grade: Number(form.grade),
         subject: dayStr === "Friday" ? "Revision / Weekly Test" : form.subject,
         batchName: form.batchName || effectiveSlotName,
+        sessionFocus: form.sessionFocus || "core",
         tutor: {
           id: tutor.id,
           name: tutor.full_name || tutor.email,
@@ -489,6 +560,26 @@ export default function AdminClassroomPage({ user }) {
               Timetable
             </button>
           </div>
+          <div className="inline-flex overflow-hidden rounded-lg border border-slate-300">
+            <select
+              value={exportRange}
+              onChange={(e) => setExportRange(e.target.value)}
+              className="border-r border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+              aria-label="Timetable range for PNG"
+            >
+              <option value="pattern">Weekly schedule (all)</option>
+              <option value="this">This week</option>
+              <option value="next">Next week</option>
+            </select>
+            <button
+              onClick={handleDownloadPng}
+              disabled={exporting}
+              className="inline-flex items-center gap-2 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Download size={16} />
+              {exporting ? "Creating…" : "Download PNG"}
+            </button>
+          </div>
           <button
             onClick={handleSyncAll}
             disabled={syncingAll}
@@ -644,6 +735,24 @@ export default function AdminClassroomPage({ user }) {
             </label>
 
             <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-900">Session focus</span>
+              <select
+                value={form.sessionFocus}
+                onChange={(e) => setForm({ ...form, sessionFocus: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              >
+                {SESSION_FOCUS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-slate-600">
+                Shown on the downloadable timetable image instead of the tutor's name.
+              </span>
+            </label>
+
+            <label className="text-sm">
               <span className="mb-1 block font-medium text-slate-900">Batch</span>
               <input
                 value={form.batchName}
@@ -784,7 +893,7 @@ export default function AdminClassroomPage({ user }) {
                   {grouped[day].map((c) => (
                     <div key={c.id} className="p-4">
                       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                        <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                        <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
                           <div>
                             <p className="text-xs uppercase tracking-wide text-slate-500">Time</p>
                             <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-slate-900">
@@ -799,6 +908,15 @@ export default function AdminClassroomPage({ user }) {
                           <div>
                             <p className="text-xs uppercase tracking-wide text-slate-500">Subject</p>
                             <p className="mt-1 text-sm font-semibold text-slate-900">{c.subject}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">Focus</p>
+                            <span
+                              className="mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                              style={{ background: focusById(classFocus(c)).bg, color: focusById(classFocus(c)).fg }}
+                            >
+                              {focusById(classFocus(c)).label}
+                            </span>
                           </div>
                           <div>
                             <p className="text-xs uppercase tracking-wide text-slate-500">Batch</p>

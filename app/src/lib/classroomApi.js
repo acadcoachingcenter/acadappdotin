@@ -21,11 +21,16 @@ export function acadUserType(user) {
   return String(user?.user_type || "").toLowerCase();
 }
 
-function encodeMeta({ grade, batchName, day, startTime, endTime }) {
+const SESSION_FOCUS_IDS = ["core", "numerical", "doubt"];
+
+function encodeMeta({ grade, batchName, sessionFocus, day, startTime, endTime }) {
   return JSON.stringify({
     __acadClassMeta: 1,
     grade: Number(grade),
     batchName: batchName || "",
+    // Core Concepts / Numerical Problems / Doubt Session - shown on the
+    // downloadable timetable PNG in place of the tutor's name.
+    sessionFocus: SESSION_FOCUS_IDS.includes(sessionFocus) ? sessionFocus : "core",
     day: day || "",
     startTime: startTime || "",
     endTime: endTime || "",
@@ -35,7 +40,7 @@ function encodeMeta({ grade, batchName, day, startTime, endTime }) {
 export function decodeClassMeta(classItem) {
   try {
     const parsed = JSON.parse(classItem?.description || "");
-    if (parsed?.__acadClassMeta === 1) return parsed;
+    if (parsed?.__acadClassMeta === 1) return { sessionFocus: "core", ...parsed };
   } catch {
     // fall through to defaults below
   }
@@ -43,6 +48,7 @@ export function decodeClassMeta(classItem) {
   return {
     grade: classItem?.grade || "",
     batchName: classItem?.batchName || "",
+    sessionFocus: classItem?.sessionFocus || "core",
     day: "",
     startTime: "",
     endTime: "",
@@ -80,6 +86,7 @@ function normalizeClass(row) {
     grade: meta.grade,
     subject: row.title || "Class",
     batchName: meta.batchName,
+    sessionFocus: meta.sessionFocus || "core",
     tutorId: tutor?.id || row.tutor_id || "",
     tutorName: tutor?.name || "",
     tutorEmail: tutor?.email || "",
