@@ -1,7 +1,8 @@
 // ACAD timetable → PNG renderer.
-// Pure Canvas 2D, no dependencies. Draws a Day × Slot grid (Mon–Sun) and
-// shows the session focus (Core Concepts / Numerical Problems / Doubt Session)
-// instead of tutor names.
+// Pure Canvas 2D, no dependencies. Draws a Day × Slot grid and shows the
+// session focus (Core Concepts / Numerical Problems / Doubt Session)
+// instead of tutor names. Slot columns with no classes (e.g. an unused
+// Morning batch) are dropped so the remaining columns get wider text.
 
 export const SESSION_FOCUS = [
   { id: "core", label: "Core Concepts", bg: "#DBEAFE", fg: "#1E3A8A", bar: "#2563EB" },
@@ -14,11 +15,13 @@ export function focusById(id) {
 }
 
 const DEFAULT_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DEFAULT_LOGO = "/images/acad-logo.jpeg";
 
 const FONT = `"Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
 const C = {
   ink: "#0F172A",
-  muted: "#64748B",
+  muted: "#475569",
+  faint: "#CBD5E1",
   line: "#E2E8F0",
   head: "#1E293B",
   headText: "#FFFFFF",
@@ -26,20 +29,40 @@ const C = {
   dayBg: "#F1F5F9",
   weekendBg: "#F8FAFC",
   page: "#FFFFFF",
-  brand: "#1D4ED8",
 };
 
-// Layout (logical px; canvas is rendered at SCALE× for sharpness)
+// Layout in logical px; the canvas is rendered at SCALE× for sharpness.
+// Sizes are tuned so text stays readable when the image is viewed on a
+// phone in WhatsApp (≈ 1/3 scale).
 const SCALE = 2;
-const W = 1600;
-const PAD = 40;
-const DAY_COL = 170;
+const W = 1400;
+const PAD = 36;
+const DAY_COL = 190;
 const CELL_PAD = 10;
-const CARD_GAP = 8;
-const CARD_PAD = 12;
-const TITLE_LH = 21;
-const PILL_H = 24;
-const MIN_ROW = 70;
+const CARD_GAP = 10;
+const CARD_PAD = 14;
+const BAR_W = 6;
+
+const T = {
+  title: 40,
+  subtitle: 23,
+  note: 19,
+  headName: 24,
+  headSub: 18,
+  day: 24,
+  cardTime: 18,
+  cardTitle: 23,
+  cardTitleLH: 30,
+  pill: 18,
+  pillH: 34,
+  legend: 19,
+};
+
+const LOGO_SIZE = 104;
+const HEADER_H = 140;
+const TABLE_HEAD_H = 86;
+const MIN_ROW = 84;
+const LEGEND_H = 100;
 
 function to12h(t) {
   if (!t) return "";
@@ -73,64 +96,103 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/**
- * entries: [{ day, startTime, endTime, subject, grade, focus }]
- * timeSlots: [{ id, name, startTime, endTime }]
- * Returns grid[dayIndex][colIndex] = entries[], last column = "Other Times".
- * Identical classes (same day/time/subject/grade/focus) are merged, so a
- * 12-week repeat series appears once.
- */
-function buildGrid(entries, timeSlots, WEEK) {
-  const cols = timeSlots.length + 1;
-  const grid = WEEK.map(() => Array.from({ length: cols }, () => []));
-  const seen = new Set();
+function loadImage(src) {
+  return new Promise((resolve) => {
+    if (!src || typeof Image === "undefined") return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null); // logo is optional - never block the PNG
+    img.src = src;
+  });
+}
 
+// Grid columns: every preset slot that has at least one class, then
+// "Other Times" if any class is outside the presets. Empty columns are
+// dropped. Identical classes (same day/time/subject/grade/focus) merge,
+// so a 12-week repeat series appears once.
+function buildGrid(entries, timeSlots, days) {
+  const seen = new Set();
+  const unique = [];
   for (const e of entries) {
-    const d = WEEK.indexOf(e.day);
-    if (d < 0) continue;
+    if (!days.includes(e.day)) continue;
     const key = [e.day, e.startTime, e.endTime, e.subject, e.grade, e.focus].join("|");
     if (seen.has(key)) continue;
     seen.add(key);
-
-    let col = timeSlots.findIndex((s) => s.startTime === e.startTime && s.endTime === e.endTime);
-    const isOther = col < 0;
-    if (isOther) col = timeSlots.length;
-    grid[d][col].push({ ...e, isOther });
+    const slotIdx = timeSlots.findIndex((s) => s.startTime === e.startTime && s.endTime === e.endTime);
+    unique.push({ ...e, slotIdx, isOther: slotIdx < 0 });
   }
 
-  for (const row of grid)
-    for (const cell of row)
-      cell.sort(
-        (a, b) =>
-          String(a.startTime).localeCompare(String(b.startTime)) ||
-          String(a.subject).localeCompare(String(b.subject))
-      );
-  return grid;
+  const columns = timeSlots
+    .map((s, i) => ({
+      name: s.name,
+      sub: `${to12h(s.startTime)} – ${to12h(s.endTime)}`,
+      match: (e) => e.slotIdx === i,
+    }))
+    .filter((col) => unique.some(col.match));
+
+  if (unique.some((e) => e.isOther)) {
+    columns.push({ name: "Other Times", sub: "Custom-scheduled classes", match: (e) => e.isOther });
+  }
+
+  const grid = days.map((day) =>
+    columns.map((col) =>
+      unique
+        .filter((e) => e.day === day && col.match(e))
+        .sort(
+          (a, b) =>
+            String(a.startTime).localeCompare(String(b.startTime)) ||
+            String(a.subject).localeCompare(String(b.subject))
+        )
+    )
+  );
+
+  return { columns, grid };
 }
 
 function cardTitle(e) {
   return `${e.subject}${e.grade ? ` · Grade ${e.grade}` : ""}`;
 }
 
-function measureCard(ctx, e, innerW) {
-  ctx.font = `700 16px ${FONT}`;
-  const lines = wrap(ctx, cardTitle(e), innerW - CARD_PAD * 2 - 6);
-  const timeH = e.isOther ? 19 : 0;
-  const h = CARD_PAD + timeH + lines.length * TITLE_LH + 8 + PILL_H + CARD_PAD;
+function measureCard(ctx, e, cardW) {
+  ctx.font = `700 ${T.cardTitle}px ${FONT}`;
+  const lines = wrap(ctx, cardTitle(e), cardW - CARD_PAD * 2 - BAR_W);
+  const timeH = e.isOther ? T.cardTime + 8 : 0;
+  const h = CARD_PAD + timeH + lines.length * T.cardTitleLH + 10 + T.pillH + CARD_PAD;
   return { lines, h };
 }
 
 function drawPill(ctx, x, y, focus) {
-  ctx.font = `700 13px ${FONT}`;
-  const w = ctx.measureText(focus.label).width + 20;
+  ctx.font = `700 ${T.pill}px ${FONT}`;
+  const w = ctx.measureText(focus.label).width + 28;
   ctx.fillStyle = focus.bg;
-  roundRect(ctx, x, y, w, PILL_H, PILL_H / 2);
+  roundRect(ctx, x, y, w, T.pillH, T.pillH / 2);
   ctx.fill();
   ctx.fillStyle = focus.fg;
   ctx.textBaseline = "middle";
-  ctx.fillText(focus.label, x + 10, y + PILL_H / 2 + 1);
+  ctx.fillText(focus.label, x + 14, y + T.pillH / 2 + 1);
   ctx.textBaseline = "alphabetic";
   return w;
+}
+
+// The logo file is a round badge on a white square, so crop to the
+// badge's circle and clip it round.
+function drawLogo(ctx, img, cx, cy, r) {
+  const side = Math.min(img.width, img.height);
+  const crop = side * 0.77;
+  const sx = (img.width - crop) / 2;
+  const sy = (img.height - crop) / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  ctx.drawImage(img, sx, sy, crop, crop, cx - r, cy - r, r * 2, r * 2);
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = C.line;
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
 export async function renderTimetablePng(
@@ -141,14 +203,18 @@ export async function renderTimetablePng(
     title = "ACAD Online Coaching",
     subtitle = "Live Class Timetable",
     footer = "acadapp.in",
+    logoUrl = DEFAULT_LOGO,
   } = {}
 ) {
-  const WEEK = days;
-  if (document.fonts?.ready) await document.fonts.ready;
+  const [logo] = await Promise.all([
+    loadImage(logoUrl),
+    typeof document !== "undefined" && document.fonts?.ready ? document.fonts.ready : null,
+  ]);
 
-  const grid = buildGrid(entries, timeSlots, WEEK);
-  const colCount = timeSlots.length + 1;
-  const colW = (W - PAD * 2 - DAY_COL) / colCount;
+  const { columns, grid } = buildGrid(entries, timeSlots, days);
+  if (!columns.length) throw new Error("No classes to put on the timetable.");
+
+  const colW = (W - PAD * 2 - DAY_COL) / columns.length;
   const cardW = colW - CELL_PAD * 2;
 
   // Pass 1: measure
@@ -164,9 +230,6 @@ export async function renderTimetablePng(
     return { cells, h: Math.max(MIN_ROW, content) };
   });
 
-  const HEADER_H = 120;
-  const TABLE_HEAD_H = 68;
-  const LEGEND_H = 90;
   const tableH = TABLE_HEAD_H + layout.reduce((s, r) => s + r.h, 0);
   const H = PAD + HEADER_H + tableH + LEGEND_H + PAD;
 
@@ -180,69 +243,70 @@ export async function renderTimetablePng(
   ctx.fillStyle = C.page;
   ctx.fillRect(0, 0, W, H);
 
-  // Header
-  ctx.fillStyle = C.brand;
-  ctx.fillRect(PAD, PAD, 6, 64);
+  // Header: round logo + title
+  const logoR = LOGO_SIZE / 2;
+  const headMid = PAD + LOGO_SIZE / 2;
+  let textX = PAD;
+  if (logo) {
+    drawLogo(ctx, logo, PAD + logoR, headMid, logoR);
+    textX = PAD + LOGO_SIZE + 24;
+  }
   ctx.fillStyle = C.ink;
-  ctx.font = `800 34px ${FONT}`;
-  ctx.fillText(title, PAD + 22, PAD + 34);
+  ctx.font = `800 ${T.title}px ${FONT}`;
+  ctx.fillText(title, textX, headMid - 4);
   ctx.fillStyle = C.muted;
-  ctx.font = `500 19px ${FONT}`;
-  ctx.fillText(subtitle, PAD + 22, PAD + 64);
+  ctx.font = `500 ${T.subtitle}px ${FONT}`;
+  ctx.fillText(subtitle, textX, headMid + 32);
   ctx.textAlign = "right";
-  ctx.font = `600 15px ${FONT}`;
-  ctx.fillText("All times in IST", W - PAD, PAD + 34);
+  ctx.font = `600 ${T.note}px ${FONT}`;
+  ctx.fillText("All times in IST", W - PAD, headMid + 6);
   ctx.textAlign = "left";
 
   const tableX = PAD;
   const tableY = PAD + HEADER_H;
   const tableW = W - PAD * 2;
 
-  // Table frame
   ctx.save();
-  roundRect(ctx, tableX, tableY, tableW, tableH, 14);
+  roundRect(ctx, tableX, tableY, tableW, tableH, 16);
   ctx.clip();
 
   // Column header
   ctx.fillStyle = C.head;
   ctx.fillRect(tableX, tableY, tableW, TABLE_HEAD_H);
-  const headCols = [
-    ...timeSlots.map((s) => ({ name: s.name, sub: `${to12h(s.startTime)} – ${to12h(s.endTime)}` })),
-    { name: "Other Times", sub: "Custom-scheduled classes" },
-  ];
   ctx.fillStyle = C.headText;
-  ctx.font = `700 17px ${FONT}`;
-  ctx.fillText("Day", tableX + 18, tableY + 40);
-  headCols.forEach((col, i) => {
-    const x = tableX + DAY_COL + i * colW + CELL_PAD + 4;
+  ctx.font = `700 ${T.headName}px ${FONT}`;
+  ctx.fillText("Day", tableX + 20, tableY + 52);
+  columns.forEach((col, i) => {
+    const x = tableX + DAY_COL + i * colW + CELL_PAD + 6;
     ctx.fillStyle = C.headText;
-    ctx.font = `700 17px ${FONT}`;
-    ctx.fillText(col.name, x, tableY + 30);
+    ctx.font = `700 ${T.headName}px ${FONT}`;
+    ctx.fillText(col.name, x, tableY + 38);
     ctx.fillStyle = C.headSub;
-    ctx.font = `500 13px ${FONT}`;
-    ctx.fillText(col.sub, x, tableY + 51);
+    ctx.font = `500 ${T.headSub}px ${FONT}`;
+    ctx.fillText(col.sub, x, tableY + 66);
   });
 
   // Rows
   let y = tableY + TABLE_HEAD_H;
   layout.forEach((row, d) => {
-    const weekend = WEEK[d] === "Saturday" || WEEK[d] === "Sunday";
+    const weekend = days[d] === "Saturday" || days[d] === "Sunday";
     ctx.fillStyle = weekend ? C.weekendBg : C.page;
     ctx.fillRect(tableX, y, tableW, row.h);
     ctx.fillStyle = C.dayBg;
     ctx.fillRect(tableX, y, DAY_COL, row.h);
 
     ctx.fillStyle = weekend ? C.muted : C.ink;
-    ctx.font = `700 17px ${FONT}`;
-    ctx.fillText(WEEK[d], tableX + 18, y + 38);
+    ctx.font = `700 ${T.day}px ${FONT}`;
+    ctx.fillText(days[d], tableX + 20, y + 48);
 
     row.cells.forEach((cards, ci) => {
-      const cx = tableX + DAY_COL + ci * colW + CELL_PAD;
+      const cellX = tableX + DAY_COL + ci * colW;
+      const cx = cellX + CELL_PAD;
       if (!cards.length) {
-        ctx.fillStyle = "#CBD5E1";
-        ctx.font = `500 18px ${FONT}`;
+        ctx.fillStyle = C.faint;
+        ctx.font = `500 ${T.day}px ${FONT}`;
         ctx.textAlign = "center";
-        ctx.fillText("—", tableX + DAY_COL + ci * colW + colW / 2, y + 42);
+        ctx.fillText("—", cellX + colW / 2, y + 50);
         ctx.textAlign = "left";
         return;
       }
@@ -250,69 +314,68 @@ export async function renderTimetablePng(
       for (const { e, lines, h } of cards) {
         const focus = focusById(e.focus);
         ctx.fillStyle = "#FFFFFF";
-        roundRect(ctx, cx, cy, cardW, h, 10);
+        roundRect(ctx, cx, cy, cardW, h, 12);
         ctx.fill();
         ctx.strokeStyle = C.line;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.fillStyle = focus.bar;
-        roundRect(ctx, cx, cy, 5, h, 3);
+        roundRect(ctx, cx, cy, BAR_W, h, 3);
         ctx.fill();
 
+        const tx = cx + CARD_PAD + BAR_W;
         let ty = cy + CARD_PAD;
         if (e.isOther) {
           ctx.fillStyle = C.muted;
-          ctx.font = `600 13px ${FONT}`;
-          ctx.fillText(`${to12h(e.startTime)} – ${to12h(e.endTime)}`, cx + CARD_PAD + 6, ty + 13);
-          ty += 19;
+          ctx.font = `600 ${T.cardTime}px ${FONT}`;
+          ctx.fillText(`${to12h(e.startTime)} – ${to12h(e.endTime)}`, tx, ty + T.cardTime - 2);
+          ty += T.cardTime + 8;
         }
         ctx.fillStyle = C.ink;
-        ctx.font = `700 16px ${FONT}`;
-        lines.forEach((ln, i) => ctx.fillText(ln, cx + CARD_PAD + 6, ty + 16 + i * TITLE_LH));
-        ty += lines.length * TITLE_LH + 8;
-        drawPill(ctx, cx + CARD_PAD + 6, ty, focus);
+        ctx.font = `700 ${T.cardTitle}px ${FONT}`;
+        lines.forEach((ln, i) => ctx.fillText(ln, tx, ty + T.cardTitle - 1 + i * T.cardTitleLH));
+        ty += lines.length * T.cardTitleLH + 10;
+        drawPill(ctx, tx, ty, focus);
         cy += h + CARD_GAP;
       }
     });
 
-    // row divider
     ctx.fillStyle = C.line;
     ctx.fillRect(tableX, y + row.h - 1, tableW, 1);
     y += row.h;
   });
 
-  // column dividers
   ctx.fillStyle = C.line;
-  for (let i = 0; i <= colCount; i++) {
+  for (let i = 0; i <= columns.length; i++) {
     const x = tableX + DAY_COL + i * colW;
     ctx.fillRect(x, tableY + TABLE_HEAD_H, 1, tableH - TABLE_HEAD_H);
   }
   ctx.restore();
 
   ctx.strokeStyle = C.line;
-  ctx.lineWidth = 1;
-  roundRect(ctx, tableX + 0.5, tableY + 0.5, tableW - 1, tableH - 1, 14);
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, tableX + 0.75, tableY + 0.75, tableW - 1.5, tableH - 1.5, 16);
   ctx.stroke();
 
   // Legend + footer
-  const ly = tableY + tableH + 34;
+  const ly = tableY + tableH + 36;
   let lx = PAD;
   ctx.fillStyle = C.muted;
-  ctx.font = `600 14px ${FONT}`;
-  ctx.fillText("Session focus", lx, ly + 17);
-  lx += ctx.measureText("Session focus").width + 16;
-  for (const f of SESSION_FOCUS) lx += drawPill(ctx, lx, ly, f) + 10;
+  ctx.font = `600 ${T.legend}px ${FONT}`;
+  ctx.fillText("Session focus", lx, ly + 24);
+  lx += ctx.measureText("Session focus").width + 18;
+  for (const f of SESSION_FOCUS) lx += drawPill(ctx, lx, ly, f) + 12;
 
   ctx.textAlign = "right";
   ctx.fillStyle = C.muted;
-  ctx.font = `500 14px ${FONT}`;
+  ctx.font = `500 ${T.legend}px ${FONT}`;
   const stamp = new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
     month: "short",
     year: "numeric",
     timeZone: "Asia/Kolkata",
   }).format(new Date());
-  ctx.fillText(`${footer}  |  Generated ${stamp}`, W - PAD, ly + 17);
+  ctx.fillText(`${footer}  |  ${stamp}`, W - PAD, ly + 24);
   ctx.textAlign = "left";
 
   return new Promise((resolve, reject) =>

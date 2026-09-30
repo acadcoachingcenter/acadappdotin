@@ -126,9 +126,9 @@ function addDays(dateStr, days) {
   // day, every time, regardless of the browser's local timezone. Since
   // adding multiples of 7 never changes the day of week, that silent
   // one-day shift pushed every weekly-repeat occurrence from its real
-  // weekday onto the day before it (e.g. Monday -> Sunday) - which the
-  // Saturday/Sunday guard below then correctly, but confusingly, skipped,
-  // producing "Created 0 classes" for a perfectly valid weekday start date.
+  // weekday onto the day before it (e.g. Monday -> Sunday), which at the
+  // time a (now removed) weekend guard skipped, producing "Created 0
+  // classes" for a perfectly valid weekday start date.
   const [year, month, day] = dateStr.split("-").map(Number);
   const d = new Date(Date.UTC(year, month - 1, day));
   d.setUTCDate(d.getUTCDate() + days);
@@ -351,11 +351,6 @@ export default function AdminClassroomPage({ user }) {
       return;
     }
 
-    if (day === "Saturday" || day === "Sunday") {
-      setMessage("ACAD live classes are scheduled Monday to Friday only.");
-      return;
-    }
-
     if (isCustomTime && (!form.customStartTime || !form.customEndTime)) {
       setMessage("Please enter both a custom start time and end time.");
       return;
@@ -383,7 +378,7 @@ export default function AdminClassroomPage({ user }) {
     function buildClassData(dateStr, dayStr) {
       return {
         grade: Number(form.grade),
-        subject: dayStr === "Friday" ? "Revision / Weekly Test" : form.subject,
+        subject: form.subject,
         batchName: form.batchName || effectiveSlotName,
         sessionFocus: form.sessionFocus || "core",
         tutor: {
@@ -431,10 +426,8 @@ export default function AdminClassroomPage({ user }) {
         for (let i = 0; i < weeks; i++) {
           const occurrenceDate = addDays(form.date, i * 7);
           const occurrenceDay = dayFromDate(occurrenceDate);
-          // Skip if a repeat lands on a weekend (shouldn't normally happen
-          // since the base date is validated as a weekday, but guards
-          // against odd date-math edge cases).
-          if (occurrenceDay === "Saturday" || occurrenceDay === "Sunday") continue;
+          // Weekends are allowed (revision / doubt-clearing sessions), and
+          // +7 days never changes the weekday, so every occurrence is kept.
           await createClass(buildClassData(occurrenceDate, occurrenceDay));
           created++;
         }
@@ -722,10 +715,9 @@ export default function AdminClassroomPage({ user }) {
             <label className="text-sm">
               <span className="mb-1 block font-medium text-slate-900">Subject</span>
               <select
-                value={form.day === "Friday" ? "Revision / Weekly Test" : form.subject}
-                disabled={form.day === "Friday"}
+                value={form.subject}
                 onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
               >
                 {SUBJECTS.map((s) => (
                   <option key={s}>{s}</option>
