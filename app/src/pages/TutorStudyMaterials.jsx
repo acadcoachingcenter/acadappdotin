@@ -11,7 +11,18 @@ import {
   SelectValue,
   SelectContent,
   SelectItem,
+  SelectGroup,
+  SelectLabel,
+  SelectSeparator,
 } from "@/components/ui/select";
+import {
+  ACAD_GRADES,
+  buildSubjectOptions,
+  customChapterId,
+  customSubjectName,
+  gradeLabel,
+  isCustomSubject,
+} from "@/lib/studyMaterialCatalog";
 import { Link2, Loader2, Trash2, Pencil, Save, X, PlusCircle, ExternalLink } from "lucide-react";
 
 export default function TutorStudyMaterials() {
@@ -34,6 +45,10 @@ export default function TutorStudyMaterials() {
 
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedChapter, setSelectedChapter] = useState("");
+  // Used only for ACAD subjects outside the SchoolBook registry (e.g. Hindi):
+  // the tutor picks a grade and types the chapter name.
+  const [customGrade, setCustomGrade] = useState("");
+  const [customChapter, setCustomChapter] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [fileUrl, setFileUrl] = useState("");
@@ -89,21 +104,17 @@ export default function TutorStudyMaterials() {
     loadMaterials();
   }, [isLoadingAuth, loadMaterials]);
 
-  // Unique subjects present in the registry, in first-seen order.
-  const subjects = [];
-  const seenSubjects = new Set();
-  for (const c of availableChapters) {
-    if (!seenSubjects.has(c.subjectId)) {
-      seenSubjects.add(c.subjectId);
-      subjects.push(c);
-    }
-  }
-
-  const chaptersForSubject = availableChapters.filter((c) => c.subjectId === selectedSubject);
+  const { registry: registrySubjects, custom: customSubjects } = buildSubjectOptions(availableChapters);
+  const isCustom = isCustomSubject(selectedSubject);
+  const chaptersForSubject = isCustom
+    ? []
+    : availableChapters.filter((c) => c.subjectId === selectedSubject);
 
   const resetForm = () => {
     setSelectedSubject("");
     setSelectedChapter("");
+    setCustomGrade("");
+    setCustomChapter("");
     setTitle("");
     setDescription("");
     setFileUrl("");
@@ -119,8 +130,16 @@ export default function TutorStudyMaterials() {
       setFormError("You need to be signed in to add a material.");
       return;
     }
-    if (!selectedSubject || !selectedChapter) {
-      setFormError("Pick a subject and chapter first.");
+    if (!selectedSubject) {
+      setFormError("Pick a subject first.");
+      return;
+    }
+    if (isCustom && (!customGrade || !customChapter.trim())) {
+      setFormError("Pick a grade and type the chapter name.");
+      return;
+    }
+    if (!isCustom && !selectedChapter) {
+      setFormError("Pick a chapter first.");
       return;
     }
     if (!title.trim()) {
@@ -132,8 +151,22 @@ export default function TutorStudyMaterials() {
       return;
     }
 
-    const subjectObj = subjects.find((s) => s.subjectId === selectedSubject);
+    const subjectObj = registrySubjects.find((s) => s.value === selectedSubject);
     const chapterObj = chaptersForSubject.find((c) => c.chapterId === selectedChapter);
+
+    const placement = isCustom
+      ? {
+          grade: gradeLabel(customGrade),
+          subject: customSubjectName(selectedSubject),
+          chapter: customChapterId(customChapter),
+          chapter_title: customChapter.trim(),
+        }
+      : {
+          grade: subjectObj?.className || "",
+          subject: subjectObj?.subjectName || "",
+          chapter: selectedChapter,
+          chapter_title: chapterObj?.chapterTitle || selectedChapter,
+        };
 
     setIsSaving(true);
     try {
@@ -146,10 +179,7 @@ export default function TutorStudyMaterials() {
         description: description.trim(),
         file_url: fileUrl.trim(),
         file_type: fileType,
-        grade: subjectObj?.className || "",
-        subject: subjectObj?.subjectName || "",
-        chapter: selectedChapter,
-        chapter_title: chapterObj?.chapterTitle || selectedChapter,
+        ...placement,
         is_active: true,
       });
       resetForm();
@@ -244,7 +274,8 @@ export default function TutorStudyMaterials() {
         <CardContent>
           {chapterLoadError && (
             <p className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              Couldn't load chapters: {chapterLoadError}
+              Couldn't load textbook chapters: {chapterLoadError}. You can still pick any subject
+              under "All ACAD subjects" and type the chapter name.
             </p>
           )}
 
@@ -257,41 +288,91 @@ export default function TutorStudyMaterials() {
                   onValueChange={(v) => {
                     setSelectedSubject(v);
                     setSelectedChapter("");
+                    setCustomChapter("");
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={isLoadingChapters ? "Loading…" : "Select a subject"} />
+                    <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
-                    {subjects.map((s) => (
-                      <SelectItem key={s.subjectId} value={s.subjectId}>
-                        {s.className ? `${s.className} — ${s.subjectName}` : s.subjectName}
-                      </SelectItem>
-                    ))}
+                    {registrySubjects.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Textbook library (pick a chapter)</SelectLabel>
+                        {registrySubjects.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {registrySubjects.length > 0 && <SelectSeparator />}
+                    <SelectGroup>
+                      <SelectLabel>All ACAD subjects (type the chapter)</SelectLabel>
+                      {customSubjects.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
+                {isLoadingChapters && (
+                  <p className="text-xs text-slate-500">Loading textbook chapters…</p>
+                )}
               </div>
 
+              {isCustom ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Grade</label>
+                  <Select value={customGrade} onValueChange={setCustomGrade}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a grade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACAD_GRADES.map((g) => (
+                        <SelectItem key={g} value={String(g)}>
+                          {gradeLabel(g)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Chapter</label>
+                  <Select
+                    value={selectedChapter}
+                    onValueChange={setSelectedChapter}
+                    disabled={!selectedSubject}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={selectedSubject ? "Select a chapter" : "Pick a subject first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chaptersForSubject.map((c) => (
+                        <SelectItem key={c.chapterId} value={c.chapterId}>
+                          {c.chapterTitle}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {isCustom && (
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Chapter</label>
-                <Select
-                  value={selectedChapter}
-                  onValueChange={setSelectedChapter}
-                  disabled={!selectedSubject}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={selectedSubject ? "Select a chapter" : "Pick a subject first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {chaptersForSubject.map((c) => (
-                      <SelectItem key={c.chapterId} value={c.chapterId}>
-                        {c.chapterTitle}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  value={customChapter}
+                  onChange={(e) => setCustomChapter(e.target.value)}
+                  placeholder="e.g. Chapter 2 - Dukh Ka Adhikar"
+                />
+                <p className="text-xs text-slate-500">
+                  Use the textbook's chapter name so students can find it easily.
+                </p>
               </div>
-            </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Title</label>
