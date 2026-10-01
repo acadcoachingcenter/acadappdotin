@@ -14,10 +14,14 @@ import { apiClient } from "@/api/apiClient";
 
    Pay period  = calendar month of payment_date.
    Teaching    = from the class timetable (LiveClass rows created
-                 in Admin Classroom). Every scheduled class this
-                 tutor had in that month (IST) is counted: classes,
-                 hours, distinct students (attendees) and subjects.
-                 If the timetable has no classes for that month,
+                 in Admin Classroom), matched to the tutor by email.
+                 One standard Monday–Friday week is built from the
+                 tutor's distinct weekly slots (weekday + start time
+                 + subject + class + batch), then per subject row:
+                   Hours / month  = hours per week × 4
+                   Student-hours  = hours / month × students
+                 Saturday/Sunday classes are not counted.
+                 If the timetable has no classes for this tutor,
                  falls back to active Enrollment records.
 ============================================================ */
 
@@ -185,6 +189,41 @@ const classAttendees = (c) => {
   return Array.isArray(a) ? a : [];
 };
 
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+const IST_WEEKDAY = new Intl.DateTimeFormat("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" });
+const IST_TIME = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Kolkata",
+});
+
+const classWeekday = (c, meta) => {
+  if (meta.day) return meta.day;
+  const d = new Date(c.scheduled_date || "");
+  return isNaN(d) ? "" : IST_WEEKDAY.format(d);
+};
+
+const classStart = (c, meta) => {
+  if (meta.startTime) return meta.startTime;
+  const d = new Date(c.scheduled_date || "");
+  return isNaN(d) ? "" : IST_TIME.format(d);
+};
+
+const toMinutes = (hhmm) => {
+  const [h, m] = String(hhmm || "").split(":").map(Number);
+  return Number.isFinite(h) ? h * 60 + (Number.isFinite(m) ? m : 0) : null;
+};
+
+const classMinutes = (c, meta) => {
+  const d = Number(c.duration_minutes);
+  if (d > 0) return d;
+  const a = toMinutes(meta.startTime);
+  const b = toMinutes(meta.endTime);
+  return a != null && b != null && b > a ? b - a : 60;
+};
+
 const isCancelled = (c) => /cancel/i.test(String(c.status || ""));
 
 const attendeeKey = (a) =>
@@ -245,72 +284,123 @@ export default function TutorPaySlip() {
   const win = useMemo(() => monthWindow(payment?.payment_date), [payment]);
 
   const summary = useMemo(() => {
-    const empty = { source: "none", rows: [], students: 0, subjects: [], classes: 0, hours: 0 };
+    const empty = { source: "none", rows: [], students: 0, subjects: [] };
     if (!payment) return empty;
 
     const tid = payment.tutor_id;
     const tutorEmail = String(tutor?.email || "").trim().toLowerCase();
 
-    /* ---- 1. Class timetable ---- */
+    /* ---- 1. Class timetable: one standard Mon–Fri week × 4 ---- */
     const isTutorsClass = (c) => {
-      if (c.tutor_id && c.tutor_id === tid) return true;
-      return classAttendees(c).some(
-        (a) =>
-          a.role === "tutor" &&
-          ((a.id && a.id === tid) ||
-            (tutorEmail && String(a.email || "").trim().toLowerCase() === tutorEmail))
-      );
+      const tutorAtt = classAttendees(c).find((a) => a.role === "tutor");
+      const attEmail = String(tutorAtt?.email || c.tutor_email || "").trim().toLowerCase();
+      if (tutorEmail && attEmail) return attEmail === tutorEmail;
+      return (c.tutor_id && c.tutor_id === tid) || (tutorAtt?.id && tutorAtt.id === tid);
     };
 
-    const monthClasses = liveClasses.filter((c) => {
+    const tutorClasses = liveClasses.filter((c) => !isCancelled(c) && isTutorsClass(c));
+
+    /* Prefer the pay month's classes; if the timetable has none in
+       that month, use the tutor's classes up to the end of it. */
+    let basis = "month";
+    let pool = tutorClasses.filter((c) => {
       const d = istDay(c.scheduled_date);
-      return d && d >= win.start && d <= win.end && !isCancelled(c) && isTutorsClass(c);
+      return d && d >= win.start && d <= win.end;
     });
+    if (pool.length === 0) {
+      basis = "standing";
+      pool = tutorClasses.filter((c) => {
+        const d = istDay(c.scheduled_date);
+        return !d || d <= win.end;
+      });
+    }
 
-    if (monthClasses.length > 0) {
-      const groups = new Map();
-      const allStudents = new Set();
-      let totalMinutes = 0;
+    if (pool.length > 0) {
+      /* Collapse repeated weeks into distinct weekly slots. */
+      const slots = new Map();
 
-      monthClasses.forEach((c) => {
+      pool.forEach((c) => {
         const meta = classMeta(c);
+        const weekday = classWeekday(c, meta);
+        if (!WEEKDAYS.includes(weekday)) return; // Monday–Friday only
+
         const subject = c.title || "Class";
         const grade = meta.grade ? `Class ${meta.grade}` : "";
         const batch = meta.batchName || "";
-        const key = `${subject}|${grade}|${batch}`;
-        const minutes = Number(c.duration_minutes) || 60;
-        totalMinutes += minutes;
+        const slotKey = `${weekday}|${classStart(c, meta)}|${subject}|${grade}|${batch}`;
 
-        if (!groups.has(key)) {
-          groups.set(key, { subject, grade, batch, classes: 0, minutes: 0, students: new Set() });
+        if (!slots.has(slotKey)) {
+          slots.set(slotKey, {
+            subject,
+            grade,
+            batch,
+            minutes: classMinutes(c, meta),
+            students: new Set(),
+          });
         }
-        const g = groups.get(key);
-        g.classes += 1;
-        g.minutes += minutes;
 
         classAttendees(c)
           .filter((a) => a.role === "student")
           .forEach((a) => {
             const k = attendeeKey(a);
-            if (k) {
-              g.students.add(k);
-              allStudents.add(k);
-            }
+            if (k) slots.get(slotKey).students.add(k);
           });
       });
 
-      const rows = [...groups.values()]
-        .map((g) => ({ ...g, count: g.students.size, hours: g.minutes / 60 }))
-        .sort((a, b) => a.subject.localeCompare(b.subject) || a.grade.localeCompare(b.grade));
+      if (slots.size > 0) {
+        const groups = new Map();
+        const allStudents = new Set();
 
-      return {
-        source: "timetable",
-        rows,
-        students: allStudents.size,
-        subjects: [...new Set(rows.map((r) => r.subject))],
-        classes: monthClasses.length,
-        hours: totalMinutes / 60,
-      };
+        slots.forEach((slot) => {
+          const key = `${slot.subject}|${slot.grade}|${slot.batch}`;
+          if (!groups.has(key)) {
+            groups.set(key, {
+              subject: slot.subject,
+              grade: slot.grade,
+              batch: slot.batch,
+              weeklyClasses: 0,
+              weeklyMinutes: 0,
+              students: new Set(),
+            });
+          }
+          const g = groups.get(key);
+          g.weeklyClasses += 1;
+          g.weeklyMinutes += slot.minutes;
+          slot.students.forEach((k) => {
+            g.students.add(k);
+            allStudents.add(k);
+          });
+        });
+
+        const rows = [...groups.values()]
+          .map((g) => {
+            const weeklyHours = g.weeklyMinutes / 60;
+            const monthlyHours = weeklyHours * 4;
+            const count = g.students.size;
+            return {
+              ...g,
+              count,
+              weeklyHours,
+              monthlyHours,
+              studentHours: monthlyHours * count,
+            };
+          })
+          .sort((a, b) => a.subject.localeCompare(b.subject) || a.grade.localeCompare(b.grade));
+
+        const sum = (f) => rows.reduce((t, r) => t + r[f], 0);
+
+        return {
+          source: "timetable",
+          basis,
+          rows,
+          students: allStudents.size,
+          subjects: [...new Set(rows.map((r) => r.subject))],
+          weeklyClasses: sum("weeklyClasses"),
+          weeklyHours: sum("weeklyHours"),
+          monthlyHours: sum("monthlyHours"),
+          studentHours: sum("studentHours"),
+        };
+      }
     }
 
     /* ---- 2. Fallback: enrollments ---- */
@@ -334,8 +424,6 @@ export default function TutorPaySlip() {
           subject: course?.subject || course?.title || e.course_name || "Course",
           grade: course?.grade_level || "",
           batch: course?.title || e.course_name || "",
-          classes: null,
-          hours: null,
           students: new Set(),
         });
       }
@@ -351,8 +439,6 @@ export default function TutorPaySlip() {
       rows,
       students: allStudents.size,
       subjects: [...new Set(rows.map((r) => r.subject))],
-      classes: null,
-      hours: null,
     };
   }, [payment, tutor, liveClasses, courses, enrollments, win]);
 
@@ -444,27 +530,38 @@ export default function TutorPaySlip() {
         {/* TEACHING */}
         <section className="ps-section">
           <h3>Teaching summary for {win.label}</h3>
-          <div className={`ps-figures ${summary.source === "timetable" ? "four" : ""}`}>
-            {summary.source === "timetable" && (
+          <div className="ps-figures four">
+            {summary.source === "timetable" ? (
               <>
                 <div>
-                  <span className="num">{summary.classes}</span>
-                  <span className="lbl">Classes taken</span>
+                  <span className="num">{summary.weeklyClasses}</span>
+                  <span className="lbl">Classes per week (Mon–Fri)</span>
                 </div>
                 <div>
-                  <span className="num">{fmtHours(summary.hours)}</span>
-                  <span className="lbl">Teaching hours</span>
+                  <span className="num">{fmtHours(summary.monthlyHours)}</span>
+                  <span className="lbl">Hours taught in month (weekly × 4)</span>
+                </div>
+                <div>
+                  <span className="num">{summary.students}</span>
+                  <span className="lbl">Students handled</span>
+                </div>
+                <div>
+                  <span className="num">{fmtHours(summary.studentHours)}</span>
+                  <span className="lbl">Student-hours (hours × students)</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <span className="num">{summary.students}</span>
+                  <span className="lbl">Students handled</span>
+                </div>
+                <div>
+                  <span className="num">{summary.subjects.length}</span>
+                  <span className="lbl">Subjects taught</span>
                 </div>
               </>
             )}
-            <div>
-              <span className="num">{summary.students}</span>
-              <span className="lbl">Students handled</span>
-            </div>
-            <div>
-              <span className="num">{summary.subjects.length}</span>
-              <span className="lbl">Subjects taught</span>
-            </div>
           </div>
 
           {summary.rows.length > 0 ? (
@@ -474,9 +571,11 @@ export default function TutorPaySlip() {
                   <th>Subject</th>
                   <th>Class</th>
                   <th>Batch</th>
-                  {summary.source === "timetable" && <th className="r">Classes</th>}
-                  {summary.source === "timetable" && <th className="r">Hours</th>}
+                  {summary.source === "timetable" && <th className="r">Classes / week</th>}
+                  {summary.source === "timetable" && <th className="r">Hours / week</th>}
+                  {summary.source === "timetable" && <th className="r">Hours / month (×4)</th>}
                   <th className="r">Students</th>
+                  {summary.source === "timetable" && <th className="r">Student-hours</th>}
                 </tr>
               </thead>
               <tbody>
@@ -485,24 +584,40 @@ export default function TutorPaySlip() {
                     <td>{r.subject}</td>
                     <td>{r.grade || "—"}</td>
                     <td>{r.batch || "—"}</td>
-                    {summary.source === "timetable" && <td className="r">{r.classes}</td>}
-                    {summary.source === "timetable" && <td className="r">{fmtHours(r.hours)}</td>}
+                    {summary.source === "timetable" && <td className="r">{r.weeklyClasses}</td>}
+                    {summary.source === "timetable" && <td className="r">{fmtHours(r.weeklyHours)}</td>}
+                    {summary.source === "timetable" && <td className="r">{fmtHours(r.monthlyHours)}</td>}
                     <td className="r">{r.count}</td>
+                    {summary.source === "timetable" && <td className="r">{fmtHours(r.studentHours)}</td>}
                   </tr>
                 ))}
               </tbody>
+              {summary.source === "timetable" && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={3}>Total</td>
+                    <td className="r">{summary.weeklyClasses}</td>
+                    <td className="r">{fmtHours(summary.weeklyHours)}</td>
+                    <td className="r">{fmtHours(summary.monthlyHours)}</td>
+                    <td className="r">{summary.students}</td>
+                    <td className="r">{fmtHours(summary.studentHours)}</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           ) : (
             <p className="ps-empty">
-              No classes in the timetable and no active enrollments found for this tutor in {win.label}.
+              No Monday–Friday classes in the timetable and no active enrollments found for this tutor.
             </p>
           )}
 
           {summary.source !== "none" && (
             <p className="ps-source">
               {summary.source === "timetable"
-                ? `Based on scheduled classes in the ACAD class timetable, ${formatDate(win.start)} to ${formatDate(win.end)}.`
-                : `No timetable classes found for ${win.label}; figures are based on active course enrollments.`}
+                ? `Calculated from one standard Monday–Friday week of the ACAD class timetable${
+                    summary.basis === "standing" ? " (no classes dated in " + win.label + ", so the tutor's current weekly schedule is used)" : ""
+                  }: hours per month = hours per week × 4; student-hours = hours per month × students in that subject. Students are counted once even if they attend more than one subject.`
+                : `No timetable classes found for this tutor; students and subjects are based on active course enrollments.`}
             </p>
           )}
         </section>
@@ -616,6 +731,7 @@ body { background: #e9edf2; }
 .ps-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
 .ps-table th { text-align: left; font-weight: 600; color: var(--ps-muted); font-size: 11.5px; padding: 6px 8px; background: var(--ps-fill); border-bottom: 1px solid var(--ps-rule); }
 .ps-table td { padding: 6px 8px; border-bottom: 1px solid var(--ps-rule); }
+.ps-table tfoot td { font-weight: 700; border-top: 2px solid var(--ps-ink); border-bottom: 0; }
 .ps-table .r { text-align: right; font-variant-numeric: tabular-nums; }
 .ps-empty { font-size: 12.5px; color: var(--ps-muted); margin: 10px 0 0; }
 
