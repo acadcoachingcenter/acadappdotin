@@ -13,8 +13,12 @@ import { apiClient } from "@/api/apiClient";
    and choose "Save as PDF".
 
    Pay period  = calendar month of payment_date.
-   Students    = distinct students on this tutor's enrollments
-                 that were active at some point in that month.
+   Teaching    = from the class timetable (LiveClass rows created
+                 in Admin Classroom). Every scheduled class this
+                 tutor had in that month (IST) is counted: classes,
+                 hours, distinct students (attendees) and subjects.
+                 If the timetable has no classes for that month,
+                 falls back to active Enrollment records.
 ============================================================ */
 
 const ADMIN_EMAILS = ["krishiv.advt@gmail.com"];
@@ -146,6 +150,46 @@ const wasActiveInMonth = (e, win) => {
   return true;
 };
 
+/* ---------- Timetable (LiveClass) helpers ---------- */
+
+const IST_DAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/* scheduled_date is an ISO timestamp; bucket it by the IST calendar day. */
+const istDay = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d) ? day(iso) : IST_DAY.format(d);
+};
+
+const parseJSON = (v, fallback) => {
+  if (v && typeof v === "object") return v;
+  try {
+    return JSON.parse(v || "");
+  } catch (_) {
+    return fallback;
+  }
+};
+
+const classMeta = (c) => {
+  const m = parseJSON(c.description, null);
+  return m && m.__acadClassMeta === 1 ? m : {};
+};
+
+const classAttendees = (c) => {
+  const a = parseJSON(c.attendees, []);
+  return Array.isArray(a) ? a : [];
+};
+
+const isCancelled = (c) => /cancel/i.test(String(c.status || ""));
+
+const attendeeKey = (a) =>
+  a.id || String(a.email || "").trim().toLowerCase() || a.name || "";
+
 const studentKey = (e) =>
   e.student_id || (e.student_email || "").toLowerCase() || e.student_name || e.id;
 
@@ -160,6 +204,7 @@ export default function TutorPaySlip() {
   const [tutor, setTutor] = useState(null);
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
+  const [liveClasses, setLiveClasses] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -177,15 +222,17 @@ export default function TutorPaySlip() {
         if (!p?.id) throw new Error("Payout record not found.");
         setPayment(p);
 
-        const [userRes, courseRes, enrollRes] = await Promise.all([
+        const [userRes, courseRes, enrollRes, classRes] = await Promise.all([
           p.tutor_id ? apiClient.entities.User.get(p.tutor_id).catch(() => null) : null,
           apiClient.entities.Course.list().catch(() => []),
           apiClient.entities.Enrollment.list().catch(() => []),
+          apiClient.entities.LiveClass.list(null, 2000).catch(() => []),
         ]);
 
         setTutor(userRes?.data && !userRes?.id ? userRes.data : userRes);
         setCourses(toArray(courseRes));
         setEnrollments(toArray(enrollRes));
+        setLiveClasses(toArray(classRes));
         setState({ loading: false, error: "" });
       } catch (err) {
         console.error("Pay slip load error:", err);
@@ -198,18 +245,83 @@ export default function TutorPaySlip() {
   const win = useMemo(() => monthWindow(payment?.payment_date), [payment]);
 
   const summary = useMemo(() => {
-    if (!payment) return { rows: [], students: 0, subjects: [] };
+    const empty = { source: "none", rows: [], students: 0, subjects: [], classes: 0, hours: 0 };
+    if (!payment) return empty;
 
+    const tid = payment.tutor_id;
+    const tutorEmail = String(tutor?.email || "").trim().toLowerCase();
+
+    /* ---- 1. Class timetable ---- */
+    const isTutorsClass = (c) => {
+      if (c.tutor_id && c.tutor_id === tid) return true;
+      return classAttendees(c).some(
+        (a) =>
+          a.role === "tutor" &&
+          ((a.id && a.id === tid) ||
+            (tutorEmail && String(a.email || "").trim().toLowerCase() === tutorEmail))
+      );
+    };
+
+    const monthClasses = liveClasses.filter((c) => {
+      const d = istDay(c.scheduled_date);
+      return d && d >= win.start && d <= win.end && !isCancelled(c) && isTutorsClass(c);
+    });
+
+    if (monthClasses.length > 0) {
+      const groups = new Map();
+      const allStudents = new Set();
+      let totalMinutes = 0;
+
+      monthClasses.forEach((c) => {
+        const meta = classMeta(c);
+        const subject = c.title || "Class";
+        const grade = meta.grade ? `Class ${meta.grade}` : "";
+        const batch = meta.batchName || "";
+        const key = `${subject}|${grade}|${batch}`;
+        const minutes = Number(c.duration_minutes) || 60;
+        totalMinutes += minutes;
+
+        if (!groups.has(key)) {
+          groups.set(key, { subject, grade, batch, classes: 0, minutes: 0, students: new Set() });
+        }
+        const g = groups.get(key);
+        g.classes += 1;
+        g.minutes += minutes;
+
+        classAttendees(c)
+          .filter((a) => a.role === "student")
+          .forEach((a) => {
+            const k = attendeeKey(a);
+            if (k) {
+              g.students.add(k);
+              allStudents.add(k);
+            }
+          });
+      });
+
+      const rows = [...groups.values()]
+        .map((g) => ({ ...g, count: g.students.size, hours: g.minutes / 60 }))
+        .sort((a, b) => a.subject.localeCompare(b.subject) || a.grade.localeCompare(b.grade));
+
+      return {
+        source: "timetable",
+        rows,
+        students: allStudents.size,
+        subjects: [...new Set(rows.map((r) => r.subject))],
+        classes: monthClasses.length,
+        hours: totalMinutes / 60,
+      };
+    }
+
+    /* ---- 2. Fallback: enrollments ---- */
     const courseById = new Map(courses.map((c) => [c.id, c]));
-    const tutorCourseIds = new Set(
-      courses.filter((c) => c.tutor_id === payment.tutor_id).map((c) => c.id)
-    );
+    const tutorCourseIds = new Set(courses.filter((c) => c.tutor_id === tid).map((c) => c.id));
 
     const relevant = enrollments.filter(
-      (e) =>
-        (e.tutor_id === payment.tutor_id || tutorCourseIds.has(e.course_id)) &&
-        wasActiveInMonth(e, win)
+      (e) => (e.tutor_id === tid || tutorCourseIds.has(e.course_id)) && wasActiveInMonth(e, win)
     );
+
+    if (relevant.length === 0) return empty;
 
     const groups = new Map();
     const allStudents = new Set();
@@ -219,9 +331,11 @@ export default function TutorPaySlip() {
       const key = e.course_id || e.course_name || "other";
       if (!groups.has(key)) {
         groups.set(key, {
-          course: course?.title || e.course_name || "Course",
-          subject: course?.subject || "",
+          subject: course?.subject || course?.title || e.course_name || "Course",
           grade: course?.grade_level || "",
+          batch: course?.title || e.course_name || "",
+          classes: null,
+          hours: null,
           students: new Set(),
         });
       }
@@ -230,16 +344,20 @@ export default function TutorPaySlip() {
       allStudents.add(k);
     });
 
-    const rows = [...groups.values()]
-      .map((g) => ({ ...g, count: g.students.size }))
-      .sort((a, b) => b.count - a.count);
+    const rows = [...groups.values()].map((g) => ({ ...g, count: g.students.size }));
 
-    const subjects = [
-      ...new Set(rows.map((r) => r.subject || r.course).filter(Boolean)),
-    ];
+    return {
+      source: "enrollments",
+      rows,
+      students: allStudents.size,
+      subjects: [...new Set(rows.map((r) => r.subject))],
+      classes: null,
+      hours: null,
+    };
+  }, [payment, tutor, liveClasses, courses, enrollments, win]);
 
-    return { rows, students: allStudents.size, subjects };
-  }, [payment, courses, enrollments, win]);
+  const fmtHours = (h) =>
+    h == null ? "—" : Number.isInteger(h) ? String(h) : h.toFixed(1);
 
   const slipNo = payment
     ? `ACAD/PS/${win.code}/${String(payment.id).replace(/-/g, "").slice(0, 6).toUpperCase()}`
@@ -326,7 +444,19 @@ export default function TutorPaySlip() {
         {/* TEACHING */}
         <section className="ps-section">
           <h3>Teaching summary for {win.label}</h3>
-          <div className="ps-figures">
+          <div className={`ps-figures ${summary.source === "timetable" ? "four" : ""}`}>
+            {summary.source === "timetable" && (
+              <>
+                <div>
+                  <span className="num">{summary.classes}</span>
+                  <span className="lbl">Classes taken</span>
+                </div>
+                <div>
+                  <span className="num">{fmtHours(summary.hours)}</span>
+                  <span className="lbl">Teaching hours</span>
+                </div>
+              </>
+            )}
             <div>
               <span className="num">{summary.students}</span>
               <span className="lbl">Students handled</span>
@@ -335,35 +465,45 @@ export default function TutorPaySlip() {
               <span className="num">{summary.subjects.length}</span>
               <span className="lbl">Subjects taught</span>
             </div>
-            <div className="wide">
-              <span className="lbl">Subjects</span>
-              <span className="val">{summary.subjects.join(", ") || "—"}</span>
-            </div>
           </div>
 
           {summary.rows.length > 0 ? (
             <table className="ps-table">
               <thead>
                 <tr>
-                  <th>Course</th>
                   <th>Subject</th>
-                  <th>Grade</th>
+                  <th>Class</th>
+                  <th>Batch</th>
+                  {summary.source === "timetable" && <th className="r">Classes</th>}
+                  {summary.source === "timetable" && <th className="r">Hours</th>}
                   <th className="r">Students</th>
                 </tr>
               </thead>
               <tbody>
                 {summary.rows.map((r, i) => (
                   <tr key={i}>
-                    <td>{r.course}</td>
-                    <td>{r.subject || "—"}</td>
+                    <td>{r.subject}</td>
                     <td>{r.grade || "—"}</td>
+                    <td>{r.batch || "—"}</td>
+                    {summary.source === "timetable" && <td className="r">{r.classes}</td>}
+                    {summary.source === "timetable" && <td className="r">{fmtHours(r.hours)}</td>}
                     <td className="r">{r.count}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : (
-            <p className="ps-empty">No active enrollments found for this tutor in {win.label}.</p>
+            <p className="ps-empty">
+              No classes in the timetable and no active enrollments found for this tutor in {win.label}.
+            </p>
+          )}
+
+          {summary.source !== "none" && (
+            <p className="ps-source">
+              {summary.source === "timetable"
+                ? `Based on scheduled classes in the ACAD class timetable, ${formatDate(win.start)} to ${formatDate(win.end)}.`
+                : `No timetable classes found for ${win.label}; figures are based on active course enrollments.`}
+            </p>
           )}
         </section>
 
@@ -465,12 +605,13 @@ body { background: #e9edf2; }
 .ps-tags { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
 .ps-tags span { border: 1px solid var(--ps-rule); background: var(--ps-fill); border-radius: 4px; padding: 1px 7px; font-size: 12px; }
 
-.ps-figures { display: grid; grid-template-columns: auto auto 1fr; gap: 0; border: 1px solid var(--ps-rule); border-radius: 6px; }
+.ps-figures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; border: 1px solid var(--ps-rule); border-radius: 6px; }
+.ps-figures.four { grid-template-columns: repeat(4, 1fr); }
 .ps-figures > div { padding: 10px 16px; display: flex; flex-direction: column; justify-content: center; }
 .ps-figures > div + div { border-left: 1px solid var(--ps-rule); }
 .ps-figures .num { font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .ps-figures .lbl { font-size: 11.5px; color: var(--ps-muted); }
-.ps-figures .val { font-size: 13px; font-weight: 600; margin-top: 2px; }
+.ps-source { font-size: 10.5px; color: var(--ps-muted); margin: 6px 0 0; font-style: italic; }
 
 .ps-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
 .ps-table th { text-align: left; font-weight: 600; color: var(--ps-muted); font-size: 11.5px; padding: 6px 8px; background: var(--ps-fill); border-bottom: 1px solid var(--ps-rule); }
@@ -494,8 +635,9 @@ body { background: #e9edf2; }
   .ps-head { flex-wrap: wrap; }
   .ps-doc { text-align: left; width: 100%; }
   .ps-grid, .ps-pay { grid-template-columns: 1fr; }
-  .ps-figures { grid-template-columns: 1fr 1fr; }
-  .ps-figures .wide { grid-column: 1 / -1; border-left: 0 !important; border-top: 1px solid var(--ps-rule); }
+  .ps-figures, .ps-figures.four { grid-template-columns: 1fr 1fr; }
+  .ps-figures > div:nth-child(3) { border-left: 0; }
+  .ps-figures > div:nth-child(n+3) { border-top: 1px solid var(--ps-rule); }
 }
 
 @page { size: A4; margin: 10mm; }
