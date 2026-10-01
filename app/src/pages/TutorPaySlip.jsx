@@ -211,10 +211,25 @@ const IST_TIME = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Kolkata",
 });
 
+/* Weekday comes from the class's actual scheduled date (IST). The stored
+   meta.day label is only a fallback — it can be stale after an edit or a
+   copied class, which would merge e.g. a Thursday class into Tuesday. */
 const classWeekday = (c, meta) => {
-  if (meta.day) return meta.day;
   const d = new Date(c.scheduled_date || "");
-  return isNaN(d) ? "" : IST_WEEKDAY.format(d);
+  if (!isNaN(d)) return IST_WEEKDAY.format(d);
+  return meta.day || "";
+};
+
+/* A class belongs to the tutor if ANY identifier matches: the class
+   tutor_id, the tutor attendee's id, or the tutor attendee's email. */
+const matchesTutor = (c, tid, tutorEmail) => {
+  const tutorAtt = classAttendees(c).find((a) => a.role === "tutor");
+  const attEmail = String(tutorAtt?.email || c.tutor_email || "").trim().toLowerCase();
+  return Boolean(
+    (c.tutor_id && c.tutor_id === tid) ||
+      (tutorAtt?.id && tutorAtt.id === tid) ||
+      (tutorEmail && attEmail && attEmail === tutorEmail)
+  );
 };
 
 const classStart = (c, meta) => {
@@ -303,19 +318,7 @@ export default function TutorPaySlip() {
     const tutorEmail = String(tutor?.email || "").trim().toLowerCase();
 
     /* ---- 1. Class timetable: one standard Mon–Fri week × 4 ---- */
-    /* A class belongs to this tutor if ANY identifier matches:
-       class tutor_id, the tutor attendee's id, or the tutor attendee's email. */
-    const isTutorsClass = (c) => {
-      const tutorAtt = classAttendees(c).find((a) => a.role === "tutor");
-      const attEmail = String(tutorAtt?.email || c.tutor_email || "").trim().toLowerCase();
-      return Boolean(
-        (c.tutor_id && c.tutor_id === tid) ||
-          (tutorAtt?.id && tutorAtt.id === tid) ||
-          (tutorEmail && attEmail && attEmail === tutorEmail)
-      );
-    };
-
-    const allTutorClasses = liveClasses.filter(isTutorsClass);
+    const allTutorClasses = liveClasses.filter((c) => matchesTutor(c, tid, tutorEmail));
     const tutorClasses = allTutorClasses.filter((c) => !isCancelled(c));
 
     /* Dates are ignored — the tutor's whole timetable is collapsed into
@@ -475,6 +478,30 @@ export default function TutorPaySlip() {
     };
   }, [payment, tutor, liveClasses, courses, enrollments, win]);
 
+  /* Screen-only check: every class row read for this tutor. */
+  const classCheck = useMemo(() => {
+    if (!payment) return [];
+    const tid = payment.tutor_id;
+    const tutorEmail = String(tutor?.email || "").trim().toLowerCase();
+    return liveClasses
+      .filter((c) => matchesTutor(c, tid, tutorEmail))
+      .map((c) => {
+        const meta = classMeta(c);
+        const weekday = classWeekday(c, meta);
+        return {
+          date: istDay(c.scheduled_date),
+          weekday,
+          storedDay: meta.day || "",
+          time: classStart(c, meta),
+          subject: c.title || "Class",
+          students: classAttendees(c).filter((a) => a.role === "student").length,
+          status: c.status || "",
+          used: isCancelled(c) ? "No — cancelled" : WEEKDAYS.includes(weekday) ? "Yes" : "No — weekend",
+        };
+      })
+      .sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
+  }, [payment, tutor, liveClasses]);
+
   const fmtHours = (h) =>
     h == null ? "—" : Number.isInteger(h) ? String(h) : String(Math.round(h * 100) / 100);
 
@@ -512,7 +539,7 @@ export default function TutorPaySlip() {
       <div className="ps-toolbar no-print">
         <span>
           Use <strong>Save as PDF</strong> as the destination in the print dialog.
-          <span className="ps-build"> · slip v8 (weekly timetable × 4)</span>
+          <span className="ps-build"> · slip v9 (weekday from class date)</span>
         </span>
         <div>
           <button type="button" className="ps-btn ghost" onClick={closeSlip}>Close</button>
@@ -728,6 +755,50 @@ export default function TutorPaySlip() {
         </footer>
       </article>
 
+      <details className="ps-check no-print">
+        <summary>
+          Timetable check (screen only): {classCheck.length} class
+          {classCheck.length === 1 ? "" : "es"} found for this tutor out of {liveClasses.length} in the
+          timetable
+        </summary>
+        <p>
+          Every timetable row linked to this tutor. Repeats of the same weekday, time, subject,
+          class and batch count once. If a class you expect is missing here, it is assigned to a
+          different tutor in Admin Classroom.
+        </p>
+        <div className="ps-check-scroll">
+          <table className="ps-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Stored day</th>
+                <th>Time</th>
+                <th>Subject</th>
+                <th className="r">Students</th>
+                <th>Status</th>
+                <th>Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {classCheck.map((r, i) => (
+                <tr key={i}>
+                  <td className="nw">{formatDate(r.date)}</td>
+                  <td>{r.weekday}</td>
+                  <td className={r.storedDay && r.storedDay !== r.weekday ? "warn" : ""}>
+                    {r.storedDay || "—"}
+                  </td>
+                  <td className="nw">{r.time || "—"}</td>
+                  <td>{r.subject}</td>
+                  <td className="r">{r.students}</td>
+                  <td>{r.status || "—"}</td>
+                  <td>{r.used}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
   );
 }
@@ -810,6 +881,11 @@ body { background: #e9edf2; }
 .ps-figures .num { font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .ps-figures .lbl { font-size: 11.5px; color: var(--ps-muted); }
 .ps-sub { margin: 14px 0 0; font-size: 12px; font-weight: 700; color: var(--ps-ink); }
+.ps-check { max-width: 210mm; margin: 16px auto 0; background: #fff; padding: 10px 14px; border: 1px dashed var(--ps-rule); font-size: 12px; }
+.ps-check summary { cursor: pointer; font-weight: 600; color: var(--ps-blue); }
+.ps-check p { margin: 6px 0; color: var(--ps-muted); }
+.ps-check-scroll { overflow-x: auto; }
+.ps-check td.warn { color: #b45309; font-weight: 700; }
 .ps-build { opacity: .6; font-size: 11px; }
 .ps-source { font-size: 10.5px; color: var(--ps-muted); margin: 6px 0 0; font-style: italic; }
 
