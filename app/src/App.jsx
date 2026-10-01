@@ -18,6 +18,7 @@ import OnlineBooks from './pages/OnlineBooks';
 import AdminBookApprovals from './pages/AdminBookApprovals';
 import MarketingSkillPanel from './pages/MarketingSkillPanel';
 import NeetJeeTutorPage from './pages/NeetJeeTutorPage';
+import TutorPaySlip from './pages/TutorPaySlip';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -148,6 +149,12 @@ const AuthenticatedApp = () => {
             <NeetJeeTutorPage />
           </LayoutWrapper>
         }
+      />
+      {/* Pay slip renders WITHOUT the app Layout so the printed PDF
+          contains only the slip. Opened from Admin Dashboard → Tutor Payouts. */}
+      <Route
+        path="/TutorPaySlip"
+        element={<TutorPaySlip />}
       />
       <Route path="*" element={<PageNotFound />} />
     </Routes>

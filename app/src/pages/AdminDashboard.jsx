@@ -19,7 +19,8 @@ import {
   FolderKanban,
   ClipboardList,
   Receipt,
-  Sparkles
+  Sparkles,
+  FileText
 } from "lucide-react";
 import EnrollStudentModal from "../components/admin/EnrollStudentModal";
 import RecordTutorPaymentModal from "../components/admin/RecordTutorPaymentModal";
@@ -42,6 +43,8 @@ export default function AdminDashboard() {
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [tutorPayments, setTutorPayments] = useState([]);
+  const [showAllPayouts, setShowAllPayouts] = useState(false);
 
   const loadData = async () => {
       try {
@@ -124,6 +127,15 @@ export default function AdminDashboard() {
               : [];
 
           tutorPayouts = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+          // Newest payout first (by payment date, then record creation)
+          setTutorPayments(
+            [...payments].sort((a, b) =>
+              String(b.payment_date || b.created_date || "").localeCompare(
+                String(a.payment_date || a.created_date || "")
+              )
+            )
+          );
         } catch (payoutError) {
           console.error("Error fetching tutor payments:", payoutError);
         }
@@ -177,6 +189,18 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const openPaySlip = (paymentId) => {
+    window.open(
+      `/TutorPaySlip?id=${encodeURIComponent(paymentId)}`,
+      "_blank",
+      "noopener"
+    );
+  };
+
+  const visiblePayouts = showAllPayouts
+    ? tutorPayments
+    : tutorPayments.slice(0, 8);
 
   const handleEnrollmentSuccess = () => {
     setShowEnrollModal(false);
@@ -417,6 +441,89 @@ export default function AdminDashboard() {
             </Link>
           </Button>
 
+        </CardContent>
+      </Card>
+
+      {/* TUTOR PAYOUTS + PAY SLIPS */}
+      <Card>
+
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle>
+            Tutor Payouts
+          </CardTitle>
+          <span className="text-sm text-slate-500">
+            {tutorPayments.length} recorded
+          </span>
+        </CardHeader>
+
+        <CardContent>
+          {tutorPayments.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No tutor payouts recorded yet. Use "Record Tutor Payment" above.
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-500 border-b">
+                      <th className="py-2 pr-4 font-medium">Date</th>
+                      <th className="py-2 pr-4 font-medium">Tutor</th>
+                      <th className="py-2 pr-4 font-medium text-right">Amount</th>
+                      <th className="py-2 pr-4 font-medium">Method</th>
+                      <th className="py-2 pr-4 font-medium">Transaction ID</th>
+                      <th className="py-2 font-medium text-right">Pay Slip</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visiblePayouts.map((p) => (
+                      <tr key={p.id} className="border-b last:border-0">
+                        <td className="py-2 pr-4 whitespace-nowrap">
+                          {p.payment_date
+                            ? new Date(`${String(p.payment_date).slice(0, 10)}T00:00:00`).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric"
+                              })
+                            : "—"}
+                        </td>
+                        <td className="py-2 pr-4">{p.tutor_name || "—"}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums whitespace-nowrap">
+                          ₹{(parseFloat(p.amount) || 0).toLocaleString("en-IN")}
+                        </td>
+                        <td className="py-2 pr-4">{p.payment_method || "—"}</td>
+                        <td className="py-2 pr-4 text-slate-500 break-all">{p.transaction_id || "—"}</td>
+                        <td className="py-2 text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openPaySlip(p.id)}
+                          >
+                            <FileText className="w-4 h-4 mr-1" />
+                            Pay Slip
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {tutorPayments.length > 8 && (
+                <div className="pt-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllPayouts((v) => !v)}
+                  >
+                    {showAllPayouts
+                      ? "Show fewer"
+                      : `Show all ${tutorPayments.length} payouts`}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
