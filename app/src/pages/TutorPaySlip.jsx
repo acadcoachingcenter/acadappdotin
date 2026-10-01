@@ -12,9 +12,15 @@ import { apiClient } from "@/api/apiClient";
    PDF contains only the slip. Use the browser's Print dialog
    and choose "Save as PDF".
 
-   Pay period  = calendar month of payment_date.
+   Pay period  = the calendar month BEFORE payment_date
+                 (salary is paid in arrears: a payout dated
+                 01 Oct 2026 is for 01–30 Sep 2026).
    Teaching    = from the class timetable (LiveClass rows created
                  in Admin Classroom), matched to the tutor by email.
+                 The weekly timetable is taken from the CURRENT week
+                 (the Mon–Fri week containing the payment date; if
+                 that week has no classes, the latest earlier week
+                 that does) and applied to the previous 4 weeks.
                  One standard Monday–Friday week is built from the
                  tutor's distinct weekly slots (weekday + start time
                  + subject + class + batch). For each slot:
@@ -124,7 +130,10 @@ const amountInWords = (amount) => {
 
 const monthWindow = (paymentDate) => {
   const base = day(paymentDate) || new Date().toISOString().slice(0, 10);
-  const [y, m] = base.split("-").map(Number);
+  const [py, pm] = base.split("-").map(Number);
+  // Previous calendar month (January → December of the previous year)
+  const y = pm === 1 ? py - 1 : py;
+  const m = pm === 1 ? 12 : pm - 1;
   const last = new Date(y, m, 0).getDate();
   const mm = String(m).padStart(2, "0");
   return {
@@ -229,6 +238,21 @@ const classMinutes = (c, meta) => {
   return a != null && b != null && b > a ? b - a : 60;
 };
 
+/* Monday (YYYY-MM-DD) of the week containing an IST date string. */
+const mondayOf = (ymd) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0 = Sunday
+  dt.setUTCDate(dt.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  return dt.toISOString().slice(0, 10);
+};
+
+const addDays = (ymd, n) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return dt.toISOString().slice(0, 10);
+};
+
 const isCancelled = (c) => /cancel/i.test(String(c.status || ""));
 
 const attendeeKey = (a) =>
@@ -305,19 +329,36 @@ export default function TutorPaySlip() {
 
     const tutorClasses = liveClasses.filter((c) => !isCancelled(c) && isTutorsClass(c));
 
-    /* Prefer the pay month's classes; if the timetable has none in
-       that month, use the tutor's classes up to the end of it. */
-    let basis = "month";
-    let pool = tutorClasses.filter((c) => {
-      const d = istDay(c.scheduled_date);
-      return d && d >= win.start && d <= win.end;
-    });
-    if (pool.length === 0) {
-      basis = "standing";
-      pool = tutorClasses.filter((c) => {
+    /* Weekly timetable = the current week (Mon–Fri of the week that
+       contains the payment date). If the tutor has no classes that
+       week, use the latest earlier week that has classes; if there
+       are none before it, the earliest week after it. */
+    const anchor = day(payment.payment_date) || IST_DAY.format(new Date());
+    const classesInWeek = (monday) => {
+      const friday = addDays(monday, 4);
+      return tutorClasses.filter((c) => {
         const d = istDay(c.scheduled_date);
-        return !d || d <= win.end;
+        return d && d >= monday && d <= friday;
       });
+    };
+
+    let weekStart = mondayOf(anchor);
+    let basis = "current";
+    let pool = classesInWeek(weekStart);
+
+    if (pool.length === 0) {
+      const dated = tutorClasses
+        .map((c) => istDay(c.scheduled_date))
+        .filter(Boolean)
+        .filter((d) => WEEKDAYS.includes(IST_WEEKDAY.format(new Date(`${d}T12:00:00+05:30`))))
+        .sort();
+      const before = dated.filter((d) => d < weekStart);
+      const pick = before.length ? before[before.length - 1] : dated[0];
+      if (pick) {
+        weekStart = mondayOf(pick);
+        basis = "latest";
+        pool = classesInWeek(weekStart);
+      }
     }
 
     if (pool.length > 0) {
@@ -406,6 +447,8 @@ export default function TutorPaySlip() {
         return {
           source: "timetable",
           basis,
+          weekStart,
+          weekEnd: addDays(weekStart, 4),
           rows,
           students: allStudents.size,
           subjects: [...new Set(rows.map((r) => r.subject))],
@@ -492,7 +535,10 @@ export default function TutorPaySlip() {
       <style>{CSS}</style>
 
       <div className="ps-toolbar no-print">
-        <span>Use <strong>Save as PDF</strong> as the destination in the print dialog.</span>
+        <span>
+          Use <strong>Save as PDF</strong> as the destination in the print dialog.
+          <span className="ps-build"> · slip v6 (prev-month period)</span>
+        </span>
         <div>
           <button type="button" className="ps-btn ghost" onClick={closeSlip}>Close</button>
           <button type="button" className="ps-btn" onClick={() => window.print()}>Print / Save as PDF</button>
@@ -600,8 +646,8 @@ export default function TutorPaySlip() {
                 {summary.rows.map((r, i) => (
                   <tr key={i}>
                     <td>{r.subject}</td>
-                    <td>{r.grade || "—"}</td>
-                    <td>{r.batch || "—"}</td>
+                    <td className="nw">{r.grade || "—"}</td>
+                    <td className="nw">{r.batch || "—"}</td>
                     {summary.source === "timetable" && <td className="r">{r.weeklyClasses}</td>}
                     {summary.source === "timetable" && <td className="r">{fmtHours(r.weeklyHours)}</td>}
                     {summary.source === "timetable" && <td className="r">{fmtHours(r.monthlyHours)}</td>}
@@ -634,9 +680,9 @@ export default function TutorPaySlip() {
           {summary.source !== "none" && (
             <p className="ps-source">
               {summary.source === "timetable"
-                ? `Calculated from one standard Monday–Friday week of the ACAD class timetable${
-                    summary.basis === "standing" ? " (no classes dated in " + win.label + ", so the tutor's current weekly schedule is used)" : ""
-                  }: hours per month = hours per week × 4; student-hours per week = sum of (class hours × students in that class) across the week; student-hours per month = student-hours per week × 4. Students handled counts each student once.`
+                ? `Weekly timetable for ${formatDate(summary.weekStart)} – ${formatDate(summary.weekEnd)}${
+                    summary.basis === "latest" ? " (latest week with classes)" : " (current week)"
+                  } applied to the previous 4 weeks of ${win.label}: hours per month = hours per week × 4; student-hours per week = sum of (class hours × students in that class); student-hours per month = student-hours per week × 4. Students handled counts each student once.`
                 : `No timetable classes found for this tutor; students and subjects are based on active course enrollments.`}
             </p>
           )}
@@ -746,11 +792,14 @@ body { background: #e9edf2; }
 .ps-figures > div + div { border-left: 1px solid var(--ps-rule); }
 .ps-figures .num { font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .ps-figures .lbl { font-size: 11.5px; color: var(--ps-muted); }
+.ps-build { opacity: .6; font-size: 11px; }
 .ps-source { font-size: 10.5px; color: var(--ps-muted); margin: 6px 0 0; font-style: italic; }
 
 .ps-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
 .ps-table th { text-align: left; font-weight: 600; color: var(--ps-muted); font-size: 11.5px; padding: 6px 8px; background: var(--ps-fill); border-bottom: 1px solid var(--ps-rule); }
 .ps-table td { padding: 6px 8px; border-bottom: 1px solid var(--ps-rule); }
+.ps-table .nw { white-space: nowrap; }
+.ps-table th { line-height: 1.25; }
 .ps-table tfoot td { font-weight: 700; border-top: 2px solid var(--ps-ink); border-bottom: 0; }
 .ps-table .r { text-align: right; font-variant-numeric: tabular-nums; }
 .ps-empty { font-size: 12.5px; color: var(--ps-muted); margin: 10px 0 0; }
