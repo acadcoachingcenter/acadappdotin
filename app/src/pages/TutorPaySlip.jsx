@@ -17,9 +17,14 @@ import { apiClient } from "@/api/apiClient";
                  in Admin Classroom), matched to the tutor by email.
                  One standard Monday–Friday week is built from the
                  tutor's distinct weekly slots (weekday + start time
-                 + subject + class + batch), then per subject row:
-                   Hours / month  = hours per week × 4
-                   Student-hours  = hours / month × students
+                 + subject + class + batch). For each slot:
+                   student-hours = slot hours × students in that slot
+                 Then:
+                   Hours / month          = hours per week × 4
+                   Student-hours / week   = Σ (slot hours × slot students)
+                   Student-hours / month  = student-hours per week × 4
+                 e.g. Mon 1h×2 + Tue 1h×1 + Wed 1h×2 + Thu 1h×1
+                      = 6 student-hours/week → 24/month
                  Saturday/Sunday classes are not counted.
                  If the timetable has no classes for this tutor,
                  falls back to active Enrollment records.
@@ -336,15 +341,24 @@ export default function TutorPaySlip() {
             batch,
             minutes: classMinutes(c, meta),
             students: new Set(),
+            latest: "",
           });
         }
 
-        classAttendees(c)
-          .filter((a) => a.role === "student")
-          .forEach((a) => {
-            const k = attendeeKey(a);
-            if (k) slots.get(slotKey).students.add(k);
-          });
+        /* A slot repeats every week; use the most recent occurrence's
+           student list so a student who left/joined isn't double counted. */
+        const slot = slots.get(slotKey);
+        const when = String(c.scheduled_date || "");
+        if (when >= slot.latest) {
+          slot.latest = when;
+          slot.minutes = classMinutes(c, meta);
+          slot.students = new Set(
+            classAttendees(c)
+              .filter((a) => a.role === "student")
+              .map(attendeeKey)
+              .filter(Boolean)
+          );
+        }
       });
 
       if (slots.size > 0) {
@@ -360,12 +374,14 @@ export default function TutorPaySlip() {
               batch: slot.batch,
               weeklyClasses: 0,
               weeklyMinutes: 0,
+              weeklyStudentHours: 0,
               students: new Set(),
             });
           }
           const g = groups.get(key);
           g.weeklyClasses += 1;
           g.weeklyMinutes += slot.minutes;
+          g.weeklyStudentHours += (slot.minutes / 60) * slot.students.size;
           slot.students.forEach((k) => {
             g.students.add(k);
             allStudents.add(k);
@@ -375,14 +391,12 @@ export default function TutorPaySlip() {
         const rows = [...groups.values()]
           .map((g) => {
             const weeklyHours = g.weeklyMinutes / 60;
-            const monthlyHours = weeklyHours * 4;
-            const count = g.students.size;
             return {
               ...g,
-              count,
+              count: g.students.size,
               weeklyHours,
-              monthlyHours,
-              studentHours: monthlyHours * count,
+              monthlyHours: weeklyHours * 4,
+              studentHours: g.weeklyStudentHours * 4,
             };
           })
           .sort((a, b) => a.subject.localeCompare(b.subject) || a.grade.localeCompare(b.grade));
@@ -398,6 +412,7 @@ export default function TutorPaySlip() {
           weeklyClasses: sum("weeklyClasses"),
           weeklyHours: sum("weeklyHours"),
           monthlyHours: sum("monthlyHours"),
+          weeklyStudentHours: sum("weeklyStudentHours"),
           studentHours: sum("studentHours"),
         };
       }
@@ -443,7 +458,7 @@ export default function TutorPaySlip() {
   }, [payment, tutor, liveClasses, courses, enrollments, win]);
 
   const fmtHours = (h) =>
-    h == null ? "—" : Number.isInteger(h) ? String(h) : h.toFixed(1);
+    h == null ? "—" : Number.isInteger(h) ? String(h) : String(Math.round(h * 100) / 100);
 
   const slipNo = payment
     ? `ACAD/PS/${win.code}/${String(payment.id).replace(/-/g, "").slice(0, 6).toUpperCase()}`
@@ -546,8 +561,10 @@ export default function TutorPaySlip() {
                   <span className="lbl">Students handled</span>
                 </div>
                 <div>
-                  <span className="num">{fmtHours(summary.studentHours)}</span>
-                  <span className="lbl">Student-hours (hours × students)</span>
+                  <span className="num">{fmtHours(summary.weeklyStudentHours)}</span>
+                  <span className="lbl">
+                    Student-hours / week (× 4 = {fmtHours(summary.studentHours)} / month)
+                  </span>
                 </div>
               </>
             ) : (
@@ -575,7 +592,8 @@ export default function TutorPaySlip() {
                   {summary.source === "timetable" && <th className="r">Hours / week</th>}
                   {summary.source === "timetable" && <th className="r">Hours / month (×4)</th>}
                   <th className="r">Students</th>
-                  {summary.source === "timetable" && <th className="r">Student-hours</th>}
+                  {summary.source === "timetable" && <th className="r">Student-hrs / week</th>}
+                  {summary.source === "timetable" && <th className="r">Student-hrs / month (×4)</th>}
                 </tr>
               </thead>
               <tbody>
@@ -588,6 +606,7 @@ export default function TutorPaySlip() {
                     {summary.source === "timetable" && <td className="r">{fmtHours(r.weeklyHours)}</td>}
                     {summary.source === "timetable" && <td className="r">{fmtHours(r.monthlyHours)}</td>}
                     <td className="r">{r.count}</td>
+                    {summary.source === "timetable" && <td className="r">{fmtHours(r.weeklyStudentHours)}</td>}
                     {summary.source === "timetable" && <td className="r">{fmtHours(r.studentHours)}</td>}
                   </tr>
                 ))}
@@ -600,6 +619,7 @@ export default function TutorPaySlip() {
                     <td className="r">{fmtHours(summary.weeklyHours)}</td>
                     <td className="r">{fmtHours(summary.monthlyHours)}</td>
                     <td className="r">{summary.students}</td>
+                    <td className="r">{fmtHours(summary.weeklyStudentHours)}</td>
                     <td className="r">{fmtHours(summary.studentHours)}</td>
                   </tr>
                 </tfoot>
@@ -616,7 +636,7 @@ export default function TutorPaySlip() {
               {summary.source === "timetable"
                 ? `Calculated from one standard Monday–Friday week of the ACAD class timetable${
                     summary.basis === "standing" ? " (no classes dated in " + win.label + ", so the tutor's current weekly schedule is used)" : ""
-                  }: hours per month = hours per week × 4; student-hours = hours per month × students in that subject. Students are counted once even if they attend more than one subject.`
+                  }: hours per month = hours per week × 4; student-hours per week = sum of (class hours × students in that class) across the week; student-hours per month = student-hours per week × 4. Students handled counts each student once.`
                 : `No timetable classes found for this tutor; students and subjects are based on active course enrollments.`}
             </p>
           )}
@@ -728,7 +748,7 @@ body { background: #e9edf2; }
 .ps-figures .lbl { font-size: 11.5px; color: var(--ps-muted); }
 .ps-source { font-size: 10.5px; color: var(--ps-muted); margin: 6px 0 0; font-style: italic; }
 
-.ps-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+.ps-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
 .ps-table th { text-align: left; font-weight: 600; color: var(--ps-muted); font-size: 11.5px; padding: 6px 8px; background: var(--ps-fill); border-bottom: 1px solid var(--ps-rule); }
 .ps-table td { padding: 6px 8px; border-bottom: 1px solid var(--ps-rule); }
 .ps-table tfoot td { font-weight: 700; border-top: 2px solid var(--ps-ink); border-bottom: 0; }
