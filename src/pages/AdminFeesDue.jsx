@@ -21,7 +21,7 @@ const ADVANCE_NOTICE_DAYS = 3;
 // app themselves -- nothing is sent automatically, and no wa.me link is used
 // (wa.me opens WhatsApp Web, which needs a fresh QR login every time).
 const REMINDER_MESSAGE = ({ studentName, courseName, amount, dueDateLabel }) =>
-  `Dear Parent,\n\nThis is a gentle reminder that the monthly fee of Rs.${amount} for ${studentName}'s course "${courseName}" is due on ${dueDateLabel}.\n\nKindly complete the payment at your earliest convenience to ensure uninterrupted, smooth continuation of your child's classes.\n\nThank you,\nACAD Coaching Center | +91 97908 18436 | info@acadapp.in | www.acadapp.in`;
+  `Dear Parent,\n\nThis is a gentle reminder that the monthly fee of Rs.${amount} for ${studentName}'s course "${courseName}" is due on ${dueDateLabel}.\n\nKindly complete the payment at your earliest convenience to ensure uninterrupted, smooth continuation of your child's classes.\n\nThank You,\nACAD Online Tuition Center - Chennai | +91 97908 18436 | info@acadapp.in | www.acadapp.in`;
 
 function formatDate(d) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
