@@ -1,0 +1,26 @@
+commit ed4b09937d5b051101d40802aeca7e54093df95d
+Author: SkylinePixelStudio <your@email.com>
+Date:   Fri Sep 11 10:34:00 2026 +0530
+
+    Native Excalidraw whiteboard for classroom (Phase 1) - replaces excalidraw.com link
+
+diff --git a/app/src/features/onlineClassroom/pages/AdminClassroomPage.jsx b/app/src/features/onlineClassroom/pages/AdminClassroomPage.jsx
+index d6cee99..60c927c 100644
+--- a/app/src/features/onlineClassroom/pages/AdminClassroomPage.jsx
++++ b/app/src/features/onlineClassroom/pages/AdminClassroomPage.jsx
+@@ -12,6 +12,7 @@ import {
+ } from "@/lib/classroomApi";
+ import { DAYS, TIME_SLOTS } from "../constants";
+ import WeeklyTimetable from "../components/WeeklyTimetable";
++import WhiteboardButton from "../components/WhiteboardButton";
+ 
+ const INDIA_TIMEZONE = "Asia/Kolkata";
+ const INDIA_OFFSET = "+05:30";
+@@ -690,6 +691,7 @@ export default function AdminClassroomPage({ user }) {
+                             <Trash2 size={14} />
+                             Delete
+                           </button>
++                          <WhiteboardButton classItem={c} role="admin" size="sm" />
+                         </div>
+                       </div>
+ 

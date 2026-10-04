@@ -8,7 +8,8 @@ import {
   AlertTriangle,
   Clock,
   CheckCircle2,
-  MessageCircle,
+  Copy,
+  Check,
   Users,
   Calendar,
 } from 'lucide-react';
@@ -16,10 +17,11 @@ import {
 // How many days before the due date a payment starts showing up in this panel.
 const ADVANCE_NOTICE_DAYS = 3;
 
-// The reminder message pre-filled into the WhatsApp link. Admin reviews and
-// sends it themselves -- nothing is sent automatically.
+// The reminder message the admin copies and pastes into the WhatsApp desktop
+// app themselves -- nothing is sent automatically, and no wa.me link is used
+// (wa.me opens WhatsApp Web, which needs a fresh QR login every time).
 const REMINDER_MESSAGE = ({ studentName, courseName, amount, dueDateLabel }) =>
-  `Dear Parent,\n\nThis is a gentle reminder that the monthly fee of Rs.${amount} for ${studentName}'s course "${courseName}" is due on ${dueDateLabel}.\n\nKindly complete the payment at your earliest convenience to ensure uninterrupted, smooth continuation of your child's classes.\n\nThank you,\nACAD Coaching Center\nacadcoachingcenter@gmail.com | +91-9790818436`;
+  `Dear Parent,\n\nThis is a gentle reminder that the monthly fee of Rs.${amount} for ${studentName}'s course "${courseName}" is due on ${dueDateLabel}.\n\nKindly complete the payment at your earliest convenience to ensure uninterrupted, smooth continuation of your child's classes.\n\nThank you,\nACAD Coaching Center | +91 97908 18436 | info@acadapp.in | www.acadapp.in`;
 
 function formatDate(d) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -78,6 +80,7 @@ export default function AdminFeesDue() {
   const [feePayments, setFeePayments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [markingKey, setMarkingKey] = useState(null);
+  const [copiedKey, setCopiedKey] = useState(null);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -191,19 +194,36 @@ export default function AdminFeesDue() {
     }
   };
 
-  const getWhatsAppLink = (item) => {
+  // Builds the reminder text for an item. Returns null if there's no
+  // WhatsApp number on file (so there's no one to look up and paste to).
+  const getReminderMessage = (item) => {
     const { enrollment, dueDate } = item;
     const phone = (enrollment.student_whatsapp || '').replace(/\D/g, '');
     if (!phone) return null;
 
-    const message = REMINDER_MESSAGE({
+    return REMINDER_MESSAGE({
       studentName: enrollment.student_name || 'your child',
       courseName: enrollment.course_name || 'their course',
       amount: Number(enrollment.amount_paid || 0).toLocaleString('en-IN'),
       dueDateLabel: formatDate(dueDate),
     });
+  };
 
-    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  const handleCopyMessage = async (item, key) => {
+    const message = getReminderMessage(item);
+    if (!message) return;
+
+    try {
+      await navigator.clipboard.writeText(message);
+    } catch (err) {
+      // Clipboard API can fail (older browsers, non-HTTPS, permissions).
+      // Fall back to a manual-copy prompt so the admin isn't stuck.
+      window.prompt('Copy this reminder message:', message);
+      return;
+    }
+
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 2000);
   };
 
   const totalOverdue = dueItems.filter((i) => i.isOverdue).length;
@@ -288,7 +308,8 @@ export default function AdminFeesDue() {
             <div className="space-y-4">
               {dueItems.map((item) => {
                 const key = `${item.enrollment.id}:${item.periodMonth}`;
-                const waLink = getWhatsAppLink(item);
+                const hasReminderMessage = !!getReminderMessage(item);
+                const isCopied = copiedKey === key;
 
                 return (
                   <div
@@ -353,17 +374,28 @@ export default function AdminFeesDue() {
                           {markingKey === key ? 'Saving...' : 'Mark Paid'}
                         </Button>
 
-                        {waLink && (
+                        {hasReminderMessage && (
                           <Button
-                            asChild
+                            onClick={() => handleCopyMessage(item, key)}
                             size="sm"
                             variant="outline"
-                            className="text-green-700 border-green-300 hover:bg-green-50"
+                            className={
+                              isCopied
+                                ? 'text-emerald-700 border-emerald-300 bg-emerald-50'
+                                : 'text-green-700 border-green-300 hover:bg-green-50'
+                            }
                           >
-                            <a href={waLink} target="_blank" rel="noopener noreferrer">
-                              <MessageCircle className="w-4 h-4 mr-1" />
-                              Send Reminder
-                            </a>
+                            {isCopied ? (
+                              <>
+                                <Check className="w-4 h-4 mr-1" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4 mr-1" />
+                                Copy Reminder
+                              </>
+                            )}
                           </Button>
                         )}
                       </div>
